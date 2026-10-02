@@ -12,9 +12,9 @@ export type VehiclePart =
   | "headlight"
   | "taillight"
   | "wheel";
-export type ValidationState =
-  "GOOD" | "TOO_CLOSE" | "TOO_FAR" | "BLURRY" | "TOO_FAST" | "TOO_DARK";
-export type Scenario = "damage" | "clear" | "incomplete";
+export type ScanState =
+  "good" | "too_close" | "too_far" | "blurry" | "too_fast" | "too_dark";
+export type Scenario = "potential_damage" | "no_damage" | "incomplete";
 export interface DamageDetection {
   id: string;
   part: VehiclePart;

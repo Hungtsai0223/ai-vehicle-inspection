@@ -5,17 +5,23 @@ import { motion, useReducedMotion } from "framer-motion";
 import { ScanLine } from "lucide-react";
 import { AnalysisProgress } from "@/components/inspection/analysis-progress";
 import { useInspection } from "@/components/inspection/inspection-context";
+import { mockConfig } from "@/lib/mock-data";
 import { inspectionApi } from "@/lib/api";
 import { Action, Button, DemoLabel } from "@/components/ui/primitives";
 export default function Analyzing() {
-  const { inspectionId, setResult, setStatus } = useInspection();
+  const {
+    inspectionId,
+    status: inspectionStatus,
+    setResult,
+    setStatus,
+  } = useInspection();
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState("");
   const [retry, setRetry] = useState(0);
   const router = useRouter();
   const reduced = useReducedMotion();
   useEffect(() => {
-    if (!inspectionId) return;
+    if (!inspectionId || inspectionStatus === "scanning") return;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout>;
     async function poll() {
@@ -23,7 +29,10 @@ export default function Analyzing() {
         const status = await inspectionApi.getInspectionStatus(inspectionId);
         if (cancelled) return;
         setProgress(status.progress);
-        if (status.progress >= 100) {
+        if (
+          status.status === "potential_damage" ||
+          status.status === "complete"
+        ) {
           const result = await inspectionApi.getInspectionResult(inspectionId);
           if (cancelled) return;
           setResult(result);
@@ -39,8 +48,8 @@ export default function Analyzing() {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [inspectionId, retry, router, setResult, setStatus]);
-  if (!inspectionId)
+  }, [inspectionId, inspectionStatus, retry, router, setResult, setStatus]);
+  if (!inspectionId || inspectionStatus === "scanning")
     return (
       <div className="page">
         <h1>尚未開始檢查</h1>
@@ -59,16 +68,28 @@ export default function Analyzing() {
         <span>{Math.round(progress)}%</span>
       </motion.div>
       <h1>AI 車況分析中</h1>
-      <p className="lead">正在比對車輛外觀，請稍候</p>
+      <p className="lead">正在比對本次掃描與租車前車況</p>
       <DemoLabel />
+      <div
+        className="analysis-progress-bar"
+        role="progressbar"
+        aria-label="AI 分析進度"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={Math.round(progress)}
+      >
+        <div className="progress-track">
+          <span style={{ width: `${progress}%` }} />
+        </div>
+      </div>
       <AnalysisProgress progress={progress} />
       <div className="analysis-stats">
         <div>
-          <strong>18</strong>
-          <span>張關鍵影格候選</span>
+          <strong>{mockConfig.analysisFrameCount}</strong>
+          <span>張關鍵影格</span>
         </div>
         <div>
-          <strong>12</strong>
+          <strong>{mockConfig.vehiclePartCount}</strong>
           <span>個車體區域</span>
         </div>
       </div>

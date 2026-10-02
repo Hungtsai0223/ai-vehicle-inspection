@@ -18,11 +18,12 @@
 
 `/return → /scan-guide → /scan → /analyzing → /damage → /result`
 
-1. 開始模擬掃描，進度在約 9 秒內完成。
-2. 分析約 4 秒，輪詢 Mock API 取得結果。
-3. 預設發現左前車門疑似刮痕；按「前往補拍」再按「模擬拍攝」及確認。
-4. 比較租車前、還車時與 AI Mask 示意影像，查看完整 JSON 報告並完成模擬還車。
-5. 在掃描頁展開 Demo Controls，可模擬六種品質狀態、疑似異常、無異常、覆蓋不足與網路不佳提示。無異常直接進入結果；覆蓋不足以 Unknown 顯示，不阻擋完成。
+1. 開始模擬掃描，進度在約 8 秒內完成。
+2. 車頭、左側、車尾、右側每段約 2 秒，指引隨進度切換；100% 顯示「車輛掃描完成」，停留約 800 ms 後進入分析。
+3. 分析約 4 秒，輪詢 Mock API 取得結果；無異常（`no_damage`）直接進入結果，預設為 `potential_damage`。
+4. 預設發現左前車門疑似刮痕；按「前往補拍」開啟模擬拍攝對話框；0.6 秒後顯示「補拍完成」，再停留 1 秒後自動顯示結果。可取消補拍。
+5. 比較租車前、還車時與 AI Mask 示意影像，點擊車損標記會選取對應卡片。「完成還車」顯示完成狀態；「查看完整檢測報告」前往 `/dashboard`。
+6. 在掃描頁展開 Demo Controls，可模擬六種品質狀態、疑似異常、無異常、覆蓋不足與網路不佳提示。無異常直接進入結果；覆蓋不足以 Unknown 顯示，不阻擋完成。
 
 直接進入需要檢查資料的路由，或重新整理後，會提示重新掃描。Context 與 Mock session 只存在記憶體，不保存照片或個資。
 
@@ -38,17 +39,21 @@ AI Damage Detection Model
 
 Next.js 16.3.8、React 19.3、TypeScript、Tailwind CSS 4、Lucide React、Framer Motion。共用 CSS token 統一白底、紅色主色、綠色完成狀態、琥珀警告與元件尺寸。支援鍵盤焦點與 reduced-motion。
 
+## Current Status
+
+Frontend MVP，AI backend currently mocked。沿用既有 `/return` 設計，沒有重建專案。
+
 ## Current MVP
 
-所有 AI 回應、時間、車損、信心度、攝影機與績效數值均為 **MOCK / DEMO DATA**。SVG 圖片不是實際車損證據。顯示 18 張候選影格、16 張有效影格；9 秒是展示掃描時間，27.4 秒為模擬報告數據。
+所有 AI 回應、時間、車損、信心度、攝影機與績效數值均為 **MOCK / DEMO DATA**。SVG 圖片不是實際車損證據。分析顯示 18 張關鍵影格、報告記錄 16 張有效影格；8 秒是展示掃描時間，27.4 秒為模擬報告數據。
 
 網路不佳僅模擬 UI 提示，**尚未實作 IndexedDB 離線暫存與重傳**。完成還車只改變本機 Demo 狀態，不會操作真實租車帳號。此為可建置的前端 MVP，正式部署仍需端到端後端整合與真實資料驗證。
 
 ## Future Integration
 
-- Camera: 在 `components/scan/scan-components.tsx` 以 `RealCameraPreview` 取代 `MockCameraPreview`，遵守 `CameraPreviewProps`。使用 `navigator.mediaDevices.getUserMedia()`，需要 HTTPS 或 localhost；處理權限拒絕、切換後鏡頭及卸載時停止 tracks。
+- Camera: 在 `components/scan/scan-components.tsx` 以 `RealCameraPreview` 取代 `MockCameraPreview`，遵守 `CameraPreviewProps`。使用 `navigator.mediaDevices.getUserMedia()`，需要 HTTPS 或 localhost；處理權限拒絕、切換後鏡頭及卸載時停止 tracks。掃描 hook 目前在離開頁面時清除 timer，避免完成後誤跳轉；真實影格擷取應放在這一層。
 - AI backend: 實作 REST API 後，在 `.env.local` 設定 `NEXT_PUBLIC_INSPECTION_MODE=rest` 及 API base URL。UI 共用 `InspectionApi`，不需要改寫視覺元件。先確認回應 schema、認證、CORS、錯誤格式、影格 metadata 與上傳策略；目前 mock 影格為文字 Blob，正式串接須更換為真實 JPEG。
-- 3D visualization: 替換 `VehicleDamageMap` 為 Three.js / React Three Fiber；保留部位、車損位置與選取車損 props。
+- 3D visualization: 替換 `VehicleDamageMap` 為 Three.js / React Three Fiber；保留部位、車損位置與選取車損 props。目前側視示意圖只校準了左前車門標記，其他部位需與模型位置一起擴充。
 - Reliability: 加入 IndexedDB frame queue、重試、session 恢復及後端責任審查流程。
 
 ## Local Development
@@ -88,12 +93,12 @@ npm run format
 ```text
 app/                 # 8 routes, layout, globals, error, not-found
 components/
-  app-shell/         # MobileAppShell + navigation
+  app-shell/         # MobileAppShell, AppHeader; immersive scan variant
   ui/                # Button, Action, Card, Disclaimer, DemoLabel
   vehicle/           # VehicleIllustration, VehicleCard, VehicleDamageMap
-  scan/              # camera, bounding box, validation, progress, coverage
-  inspection/        # context, analysis, damage card, summary
-  dashboard/         # MetricCard, ExperimentTable
+  scan/              # camera, bounding box, validation, progress, coverage, DemoControls, useDemoScan
+  inspection/        # context, analysis, damage card, ImageComparison, RecaptureDialog, summary
+  dashboard/         # MetricCard, PerformanceBar, ExperimentTable
 lib/
   api.ts             # replaceable Promise-based mock / REST API
   mock-data.ts       # explicitly marked demo values
@@ -112,7 +117,7 @@ public/mock/         # before, after, mask SVG placeholders
 | `getInspectionStatus(id)`     | GET `/api/inspection/{id}`         | `{ status, progress }` |
 | `getInspectionResult(id)`     | GET `/api/inspection/{id}/result`  | `InspectionResult`     |
 
-coverage/confidence 使用 0–1，progress 使用 0–100；duration/processingTime 使用秒。上傳 adapter 以 FormData 傳送 `frames` 與對應 `metadata`。API methods 拋出 Error，由頁面顯示重試。Mock session 使用記憶體 Map。
+coverage/confidence 使用 0–1，progress 使用 0–100；duration/processingTime 使用秒。上傳 adapter 以 FormData 傳送 `frames` 與對應 `metadata`。API methods 拋出 Error，由頁面顯示重試。Mock session 使用記憶體 Map。`lib/mock-data.ts` 的 `mockConfig` 集中設定 8 秒掃描、800 ms 完成提示、4 秒分析與補拍時序；`mockVehicle`、`mockResult`、metrics、accuracy 和 experiments 均為共用模擬資料。`ScanState` 為 `good / too_close / too_far / blurry / too_fast / too_dark`，`Scenario` 為 `potential_damage / no_damage / incomplete`。
 
 ```json
 {

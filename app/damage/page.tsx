@@ -1,9 +1,11 @@
 "use client";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertCircle, Camera, Check } from "lucide-react";
+import { AlertCircle, Camera } from "lucide-react";
 import { useInspection } from "@/components/inspection/inspection-context";
 import { VehicleDamageMap } from "@/components/vehicle/vehicle-damage-map";
+import { RecaptureDialog } from "@/components/inspection/recapture-dialog";
+import { partLabels, damageLabels } from "@/lib/inspection-labels";
 import {
   Action,
   Button,
@@ -12,18 +14,22 @@ import {
   DemoLabel,
 } from "@/components/ui/primitives";
 export default function Damage() {
-  const ctx = useInspection();
+  const { result, setRecaptured, setStatus } = useInspection();
   const router = useRouter();
   const [capturing, setCapturing] = useState(false);
-  const [captured, setCaptured] = useState(false);
-  if (!ctx.result)
+  const finishCapture = useCallback(() => {
+    setRecaptured(true);
+    setStatus("complete");
+    router.replace("/result");
+  }, [setRecaptured, setStatus, router]);
+  if (!result)
     return (
       <div className="page">
         <h1>尚無檢測資料</h1>
         <Action href="/scan">開始掃描</Action>
       </div>
     );
-  const damage = ctx.result.damages[0];
+  const damage = result.damages[0];
   if (!damage)
     return (
       <div className="page">
@@ -31,85 +37,61 @@ export default function Damage() {
         <Action href="/result">查看檢查結果</Action>
       </div>
     );
+  const part = partLabels[damage.part];
+  const type = damageLabels[damage.type];
   return (
     <div className="page damage-page">
       <div className="warning-icon">
         <AlertCircle size={30} />
       </div>
       <h1>發現疑似異常</h1>
-      <p className="lead">AI 偵測到左前車門可能存在新增刮痕。</p>
-      <DemoLabel />
+      <p className="lead">AI 偵測到{part.zh}可能存在新增刮痕</p>
+      <div className="damage-badges">
+        <span className="alert-label">Potential New Damage</span>
+        <DemoLabel />
+      </div>
       <VehicleDamageMap
-        vehicleParts={["left_front_door"]}
+        vehicleParts={[damage.part]}
         damageLocations={[damage]}
         selectedDamage={damage.id}
       />
       <Card>
-        <div className="row">
-          <strong>左前車門</strong>
-          <b className="red">{Math.round(damage.confidence * 100)}%</b>
-        </div>
-        <p>
-          Left Front Door <span>AI 信心度</span>
-        </p>
-        <hr />
-        <strong>
-          疑似刮痕 <small>Scratch</small>
-        </strong>
+        <dl className="damage-details">
+          <div>
+            <dt>位置</dt>
+            <dd>
+              {part.zh}
+              <small>{part.en}</small>
+            </dd>
+          </div>
+          <div>
+            <dt>類型</dt>
+            <dd>
+              {type.zh}
+              <small>{type.en}</small>
+            </dd>
+          </div>
+          <div>
+            <dt>AI 信心度</dt>
+            <dd className="red">{Math.round(damage.confidence * 100)}%</dd>
+          </div>
+        </dl>
       </Card>
       <p className="recapture-instruction">
-        請靠近左前車門，依照畫面標示進行補拍。
+        為提高辨識準確度，請靠近標示區域補拍一張清晰影像。
       </p>
-      {!capturing ? (
-        <Button onClick={() => setCapturing(true)}>
-          <Camera size={20} />
-          前往補拍
-        </Button>
-      ) : (
-        <Card className="recapture">
-          <h3>{captured ? "補拍完成" : "補拍左前車門"}</h3>
-          <div className="capture-target">
-            <VehicleDamageMap
-              vehicleParts={["left_front_door"]}
-              damageLocations={[damage]}
-            />
-          </div>
-          <p>
-            {captured
-              ? "模擬影像已加入檢查報告。"
-              : "將標示區域置於畫面中央。此為模擬拍攝。"}
-          </p>
-          {!captured ? (
-            <Button
-              onClick={() => {
-                setCaptured(true);
-                ctx.setRecaptured(true);
-              }}
-            >
-              <Camera size={18} />
-              模擬拍攝
-            </Button>
-          ) : (
-            <Button
-              onClick={() => {
-                ctx.setStatus("complete");
-                router.push("/result");
-              }}
-            >
-              <Check size={18} />
-              確認補拍並查看結果
-            </Button>
-          )}
-        </Card>
-      )}
+      <Button onClick={() => setCapturing(true)}>
+        <Camera size={20} />
+        前往補拍
+      </Button>
       <details className="info-details">
         <summary>查看辨識資訊</summary>
         <p>
-          部位：{damage.part}
+          Part: {part.en}
           <br />
-          類型：{damage.type}
+          Damage: {type.en}
           <br />
-          信心度：{damage.confidence}
+          Confidence: {damage.confidence}
           <br />
           模型：Mock API（未連接 AI 模型）
           <br />
@@ -117,6 +99,13 @@ export default function Damage() {
         </p>
       </details>
       <Disclaimer />
+      {capturing && (
+        <RecaptureDialog
+          damage={damage}
+          onComplete={finishCapture}
+          onDismiss={() => setCapturing(false)}
+        />
+      )}
     </div>
   );
 }

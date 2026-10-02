@@ -3,8 +3,9 @@ import {
   MetricCard,
   ExperimentTable,
 } from "@/components/dashboard/dashboard-components";
+import { PerformanceBar } from "@/components/dashboard/performance-bar";
 import { metrics, accuracy } from "@/lib/mock-data";
-import { Card, DemoLabel, Action } from "@/components/ui/primitives";
+import { Card, Action } from "@/components/ui/primitives";
 export default function Dashboard() {
   return (
     <div className="dashboard-page">
@@ -15,11 +16,12 @@ export default function Dashboard() {
           </h1>
           <p>評審、工程師與營運團隊的檢測成效展示</p>
         </div>
-        <DemoLabel />
+        <span className="demo-label">DEMO / MOCK DATA</span>
       </div>
       <div className="mock-notice">
         以下數據皆為 MOCK / DEMO DATA，非實測結果，不代表 AI 模型效能。
       </div>
+      <h2 className="metrics-heading">Prototype Metrics — Mock Data</h2>
       <div className="metrics">
         {metrics.map(([label, value]) => (
           <MetricCard key={label} label={label} value={value} />
@@ -34,15 +36,7 @@ export default function Dashboard() {
           <p>各車損類型辨識率 · 模擬</p>
           <div className="accuracy-bars">
             {accuracy.map(([name, value]) => (
-              <div key={name}>
-                <div className="row">
-                  <span>{name}</span>
-                  <strong>{value}%</strong>
-                </div>
-                <div className="progress-track">
-                  <span style={{ width: `${value}%` }} />
-                </div>
-              </div>
+              <PerformanceBar key={name} label={name} value={value} />
             ))}
           </div>
         </Card>
@@ -51,10 +45,10 @@ export default function Dashboard() {
             <h2>Inspection Efficiency</h2>
             <Timer size={20} />
           </div>
-          <p>還車檢查時間比較 · 模擬</p>
+          <p>Mock Comparison · 還車檢查時間比較</p>
           <div className="time-chart">
             <div>
-              <span>Traditional Process</span>
+              <span>Traditional Photo Process</span>
               <strong>78 sec</strong>
               <div style={{ width: "100%" }} />
             </div>

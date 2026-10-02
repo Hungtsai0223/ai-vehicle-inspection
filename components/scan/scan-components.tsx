@@ -1,28 +1,40 @@
 "use client";
-import { Check, ArrowRight, AlertTriangle, Car, Camera } from "lucide-react";
+import {
+  Check,
+  ArrowRight,
+  AlertTriangle,
+  Car,
+  Camera,
+  MoveHorizontal,
+  Gauge,
+  SunMoon,
+  Focus,
+} from "lucide-react";
 import { VehicleIllustration } from "@/components/vehicle/vehicle-illustration";
-import type { ValidationState } from "@/types/inspection";
+import type { ScanState } from "@/types/inspection";
 export interface CameraPreviewProps {
-  state: ValidationState;
+  state: ScanState;
 }
-// TODO: RealCameraPreview implements this interface with getUserMedia; stop tracks on unmount.
+// TODO: RealCameraPreview implements CameraPreviewProps with getUserMedia.
+// Handle permission denial, HTTPS, rear camera and stop all tracks on unmount.
 export function MockCameraPreview({ state }: CameraPreviewProps) {
   return (
     <div
-      className={`camera-preview ${state === "BLURRY" ? "blurred" : ""} ${state === "TOO_DARK" ? "dim" : ""}`}
+      className={`camera-preview ${state === "blurry" ? "blurred" : ""} ${state === "too_dark" ? "dim" : ""}`}
     >
       <div className="camera-grid" />
       <span className="camera-label">
-        <Camera size={14} /> 模擬攝影機 · 不存取鏡頭
+        <Camera size={14} />
+        模擬攝影機 · 不存取鏡頭
       </span>
       <VehicleIllustration dark />
-      <BoundingBox good={state === "GOOD"} />
+      <BoundingBox good={state === "good"} />
     </div>
   );
 }
 export function BoundingBox({ good }: { good: boolean }) {
   return (
-    <div className={`bounding-box ${good ? "valid" : ""}`}>
+    <div aria-hidden="true" className={`bounding-box ${good ? "valid" : ""}`}>
       <i />
       <i />
       <i />
@@ -30,44 +42,77 @@ export function BoundingBox({ good }: { good: boolean }) {
     </div>
   );
 }
-export const validationMessages: Record<ValidationState, string> = {
-  GOOD: "拍攝狀態良好",
-  TOO_CLOSE: "請稍微後退",
-  TOO_FAR: "請靠近車輛",
-  BLURRY: "畫面模糊，請放慢速度",
-  TOO_FAST: "移動速度太快",
-  TOO_DARK: "環境較暗，請靠近車輛",
+export const validationMessages: Record<ScanState, string> = {
+  good: "拍攝狀態良好",
+  too_close: "距離太近，請稍微後退",
+  too_far: "距離太遠，請靠近車輛",
+  blurry: "畫面模糊，請放慢速度",
+  too_fast: "移動速度太快",
+  too_dark: "環境較暗，請保持手機穩定",
 };
-export function ScanStatusBadge({ state }: { state: ValidationState }) {
+const stateIcons = {
+  good: Check,
+  too_close: MoveHorizontal,
+  too_far: MoveHorizontal,
+  blurry: Focus,
+  too_fast: Gauge,
+  too_dark: SunMoon,
+};
+export function ScanStatusBadge({ state }: { state: ScanState }) {
+  const Icon = stateIcons[state];
   return (
     <div
       role="status"
-      className={`scan-status ${state === "GOOD" ? "good" : "warning"}`}
+      className={`scan-status ${state === "good" ? "good" : "warning"}`}
     >
-      {state === "GOOD" ? <Check size={18} /> : <AlertTriangle size={18} />}{" "}
+      <Icon size={18} />
       {validationMessages[state]}
     </div>
   );
 }
-export function ScanOverlay({ state }: { state: ValidationState }) {
+export function scanDirection(progress: number) {
+  return progress >= 100
+    ? "車輛掃描完成"
+    : progress < 25
+      ? "請對準車頭"
+      : progress < 50
+        ? "請向右緩慢移動"
+        : progress < 75
+          ? "請繼續移動至車尾"
+          : "即將完成掃描";
+}
+export function ScanOverlay({
+  state,
+  progress,
+}: {
+  state: ScanState;
+  progress: number;
+}) {
+  const distanceGood = state !== "too_close" && state !== "too_far";
+  const clarityGood =
+    state !== "blurry" && state !== "too_dark" && state !== "too_fast";
+  const validations = [
+    { label: "車輛完整入鏡", valid: true },
+    { label: distanceGood ? "距離適中" : "調整拍攝距離", valid: distanceGood },
+    { label: clarityGood ? "畫面清晰" : "調整影像品質", valid: clarityGood },
+  ];
   return (
     <div className="scan-overlay">
       <MockCameraPreview state={state} />
-      <div className="checks">
-        {["車輛完整入鏡", "距離適中", "畫面清晰"].map((label, i) => (
-          <span key={label}>
-            {state === "GOOD" || i === 0 ? (
-              <Check size={14} />
-            ) : (
-              <AlertTriangle size={14} />
-            )}{" "}
-            {label}
-          </span>
-        ))}
-      </div>
-      <div className="direction">
-        <ArrowRight size={22} />
-        請向右緩慢移動
+      <div className="camera-instructions">
+        <div className="direction" role="status">
+          <ArrowRight size={22} />
+          {scanDirection(progress)}
+        </div>
+        <div className="checks">
+          {validations.map(({ label, valid }) => (
+            <span className={valid ? "" : "needs-adjustment"} key={label}>
+              {valid ? <Check size={14} /> : <AlertTriangle size={14} />}{" "}
+              {label}
+            </span>
+          ))}
+        </div>
+        <ScanStatusBadge state={state} />
       </div>
     </div>
   );
@@ -103,33 +148,33 @@ export function CoverageIndicator({
   incomplete?: boolean;
 }) {
   return (
-    <div className="coverage">
+    <div className="coverage" aria-label="四面車身掃描覆蓋">
       {["車頭", "左側", "車尾", "右側"].map((label, i) => {
         const done = progress >= (i + 1) * 25;
+        const current = progress >= i * 25;
         const unknown = incomplete && i === 3;
         return (
           <div
             className={
-              unknown
-                ? "unknown"
-                : done
-                  ? "done"
-                  : progress >= i * 25
-                    ? "current"
-                    : ""
+              unknown ? "unknown" : done ? "done" : current ? "current" : ""
             }
             key={label}
           >
             <Car size={24} />
             <span>{label}</span>
             <small>
-              {unknown
-                ? "Unknown"
-                : done
-                  ? "✓ 完成"
-                  : progress >= i * 25
-                    ? "掃描中"
-                    : "待掃描"}
+              {unknown ? (
+                "Unknown"
+              ) : done ? (
+                <>
+                  <Check size={11} />
+                  完成
+                </>
+              ) : current ? (
+                "掃描中"
+              ) : (
+                "待掃描"
+              )}
             </small>
           </div>
         );

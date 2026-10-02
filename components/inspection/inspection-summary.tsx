@@ -4,7 +4,7 @@ export function InspectionSummary({ result }: { result: InspectionResult }) {
     ["掃描時間", `${result.scanDuration} sec`],
     ["有效影格", `${result.keyFrameCount} frames`],
     ["掃描覆蓋率", `${Math.round(result.coverage * 100)}%`],
-    ["疑似新增車損", `${result.damages.length}`],
+    ["疑似異常", `${result.damages.length}`],
     [
       "AI 信心度",
       result.damages.length

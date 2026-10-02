@@ -1,23 +1,32 @@
 "use client";
-import { createContext, useContext, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useState,
+  useCallback,
+  type ReactNode,
+} from "react";
 import type {
   InspectionResult,
   Scenario,
   InspectionStatus,
 } from "@/types/inspection";
+import { mockConfig } from "@/lib/mock-data";
 import { inspectionApi } from "@/lib/api";
 const Context = createContext<ReturnType<typeof useInspectionState> | null>(
   null,
 );
 function useInspectionState() {
-  const [scenario, setScenario] = useState<Scenario>("damage");
+  const [scenario, setScenario] = useState<Scenario>(
+    mockConfig.defaultScenario,
+  );
   const [inspectionId, setId] = useState("");
   const [progress, setProgress] = useState(0);
   const [status, setStatus] = useState<InspectionStatus["status"]>("scanning");
   const [result, setResult] = useState<InspectionResult | null>(null);
   const [recaptured, setRecaptured] = useState(false);
   const [poorNetwork, setPoorNetwork] = useState(false);
-  async function begin() {
+  const begin = useCallback(async () => {
     const { inspectionId: id } = await inspectionApi.startInspection(scenario);
     setId(id);
     setProgress(0);
@@ -25,7 +34,7 @@ function useInspectionState() {
     setRecaptured(false);
     setStatus("scanning");
     return id;
-  }
+  }, [scenario]);
   return {
     scenario,
     setScenario,

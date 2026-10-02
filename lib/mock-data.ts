@@ -1,5 +1,16 @@
 import type { InspectionResult, Scenario } from "@/types/inspection";
 // MOCK / DEMO DATA — not measured experiment results.
+export const mockVehicle = { name: "Toyota Yaris Cross", plate: "RAC-2026" };
+export const mockConfig = {
+  defaultScenario: "potential_damage" as Scenario,
+  scanDurationMs: 8_000,
+  scanCompleteDelayMs: 800,
+  analysisDurationMs: 4_000,
+  recaptureTargetMs: 600,
+  recaptureCompleteMs: 1_000,
+  analysisFrameCount: 18,
+  vehiclePartCount: 12,
+};
 export const mockResult: InspectionResult = {
   inspectionId: "demo_2026",
   vehicleId: "RAC-2026",
@@ -28,7 +39,7 @@ export function resultFor(
     ...mockResult,
     inspectionId: id,
     coverage: scenario === "incomplete" ? 0.75 : 0.96,
-    damages: scenario === "clear" ? [] : mockResult.damages,
+    damages: scenario === "no_damage" ? [] : mockResult.damages,
   };
 }
 export const metrics = [
@@ -36,7 +47,7 @@ export const metrics = [
   ["Average AI Detection Time", "2.8 sec"],
   ["Complete Inspection Time", "28.6 sec"],
   ["Scan Coverage", "96%"],
-  ["Potential Damage Detected", "1"],
+  ["Potential Damage", "1"],
 ];
 export const accuracy = [
   ["Scratch", 96],

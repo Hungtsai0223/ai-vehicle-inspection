@@ -1179,3 +1179,304 @@ footer span {
     scroll-behavior: auto !important;
   }
 }
+/* Follow-on flow additions reuse the existing /return tokens and primitives. */
+.guide-header {
+  margin-bottom: 14px;
+}
+.instruction-cards {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+  margin: 20px 0;
+}
+.instruction-cards li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+}
+.instruction-number {
+  font-size: 11px;
+  color: var(--muted);
+}
+.instruction-cards svg {
+  color: var(--red);
+}
+.instruction-cards strong {
+  font-size: 13px;
+}
+.instruction-cards p {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 3px;
+}
+.guide-page .guide-vehicle {
+  margin: 20px 0;
+}
+.guide-page .guide-vehicle .vehicle-svg {
+  max-height: 140px;
+}
+.page-fade {
+  animation: page-appear 0.22s ease-out;
+}
+@keyframes page-appear {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.camera-shell {
+  background: #202a33;
+}
+.camera-shell main {
+  min-height: 0;
+}
+.camera-topnav {
+  height: 64px;
+  border-color: #ffffff12;
+  color: white;
+}
+.camera-topnav h1 {
+  font-size: 19px;
+  letter-spacing: 0;
+}
+.camera-topnav h1 span {
+  color: #ff6774;
+}
+.camera-topnav .nav-spacer {
+  width: 30px;
+}
+.camera-shell .scan-page {
+  min-height: 780px;
+  display: flex;
+  flex-direction: column;
+}
+.scan-vehicle-name {
+  text-align: center;
+  font-size: 11px;
+  padding: 0 0 14px;
+  color: #c5cdd6;
+}
+.camera-shell .scan-overlay {
+  flex: 1;
+  min-height: 390px;
+}
+.camera-shell .camera-preview {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+  background: #36434f;
+}
+.camera-shell .camera-preview > .vehicle-svg {
+  position: absolute;
+  top: 45%;
+  transform: translateY(-50%);
+}
+.camera-shell .camera-grid {
+  background:
+    linear-gradient(transparent 55%, #293642 56%),
+    repeating-linear-gradient(90deg, transparent 0 86px, #a4b6c01a 87px 89px);
+}
+.camera-shell .bounding-box {
+  top: 45%;
+  bottom: auto;
+  height: 195px;
+  transform: translateY(-50%);
+}
+.camera-instructions {
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  bottom: 16px;
+}
+.camera-instructions .direction {
+  padding: 10px;
+  border-radius: 12px;
+  background: #18232ed9;
+  font-size: 14px;
+}
+.camera-instructions .checks {
+  padding: 14px 0 10px;
+  font-size: 10px;
+  gap: 9px;
+}
+.camera-instructions .checks .needs-adjustment {
+  color: #ffcb81;
+}
+.camera-instructions .checks .needs-adjustment svg {
+  color: #ffcb81;
+}
+.camera-instructions .scan-status {
+  background: #17232ce6;
+  color: #74e3a7;
+  font-size: 11px;
+}
+.camera-instructions .scan-status.warning {
+  color: #ffce82;
+}
+.camera-shell .scan-bottom {
+  padding: 16px 22px 10px;
+}
+.camera-shell .scan-progress {
+  margin: 0 0 14px;
+}
+.camera-shell .coverage {
+  margin-bottom: 16px;
+}
+.coverage small {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+.camera-shell .demo-controls {
+  margin-top: 6px;
+}
+.scan-complete {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--green);
+  font-size: 12px;
+  margin-bottom: 12px;
+}
+.analysis-progress-bar {
+  margin-top: 24px;
+}
+.damage-badges {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.damage-details {
+  margin: 0;
+  display: grid;
+  gap: 14px;
+}
+.damage-details > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+.damage-details dt {
+  font-size: 11px;
+  color: var(--muted);
+}
+.damage-details dd {
+  margin: 0;
+  text-align: right;
+  font-size: 14px;
+  font-weight: 600;
+}
+.damage-details small {
+  display: block;
+  font-size: 10px;
+  margin-top: 2px;
+}
+.recapture-dialog {
+  width: min(350px, calc(100% - 36px));
+  border: 0;
+  border-radius: 24px;
+  padding: 24px;
+  background: white;
+  color: var(--text);
+  box-shadow: 0 20px 70px #0003;
+  margin: auto;
+}
+.recapture-dialog::backdrop {
+  background: #17212cd9;
+}
+.recapture-dialog h2 {
+  text-align: center;
+  font-size: 20px;
+}
+.recapture-dialog p {
+  text-align: center;
+  font-size: 12px;
+  color: var(--muted);
+  margin: 16px 0;
+}
+.capture-success,
+.capture-icon {
+  display: flex;
+  justify-content: center;
+  margin: 8px 0 18px;
+  color: var(--green);
+}
+.capture-icon {
+  color: var(--red);
+}
+.vehicle-map-canvas {
+  position: relative;
+}
+.damage-marker {
+  position: absolute;
+  left: 36.4%;
+  top: 62.4%;
+  transform: translate(-50%, -50%);
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: #e5313f26;
+  border: 0;
+  display: grid;
+  place-items: center;
+}
+.damage-marker span {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  font-size: 12px;
+  font-weight: 700;
+  color: white;
+  background: var(--red);
+  border: 3px solid white;
+  border-radius: 50%;
+}
+.damage-marker[aria-pressed="true"] {
+  outline: 2px solid var(--red);
+}
+.selected-damage {
+  border-color: var(--red);
+  box-shadow: 0 0 0 2px #e5313f16;
+}
+.damage-card:focus-visible {
+  outline: 3px solid #2768ce;
+  outline-offset: 4px;
+}
+.image-empty {
+  padding: 70px 10px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 13px;
+}
+.metrics-heading {
+  font-size: 15px;
+  margin: 8px 0 16px;
+}
+.experiment > .experiment-demo-note {
+  color: var(--amber);
+  font-size: 11px;
+  margin-top: 8px;
+}
+@media (max-width: 700px) {
+  .camera-shell .scan-page {
+    min-height: calc(100svh - 64px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .page-fade {
+    animation: none;
+  }
+}

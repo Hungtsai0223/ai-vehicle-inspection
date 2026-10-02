@@ -3,14 +3,19 @@ import type {
   Scenario,
   InspectionStatus,
 } from "@/types/inspection";
-import { resultFor } from "./mock-data";
+import { mockConfig, resultFor } from "./mock-data";
 const wait = () => new Promise<void>((resolve) => setTimeout(resolve, 160));
 const sessions = new Map<
   string,
-  { scenario: Scenario; started: number; uploaded: boolean }
+  {
+    scenario: Scenario;
+    started: number;
+    uploaded: boolean;
+    analysisStarted?: number;
+  }
 >();
 export const mockApi: InspectionApi = {
-  async startInspection(scenario = "damage") {
+  async startInspection(scenario = mockConfig.defaultScenario) {
     await wait();
     const inspectionId = `demo_${Date.now()}`;
     sessions.set(inspectionId, {
@@ -32,8 +37,16 @@ export const mockApi: InspectionApi = {
     await wait();
     const s = sessions.get(id);
     if (!s) throw new Error("找不到檢查紀錄");
+    // Start the mock analysis clock when the analyzing screen first polls.
+    // This keeps the 800 ms scan-completion preview separate from processing.
+    if (s.uploaded && s.analysisStarted === undefined)
+      s.analysisStarted = Date.now();
     const progress = s.uploaded
-      ? Math.min(100, (Date.now() - s.started) / 40)
+      ? Math.min(
+          100,
+          ((Date.now() - s.analysisStarted!) / mockConfig.analysisDurationMs) *
+            100,
+        )
       : 0;
     return {
       progress,
@@ -41,7 +54,7 @@ export const mockApi: InspectionApi = {
         ? "scanning"
         : progress < 100
           ? "analyzing"
-          : s.scenario === "clear"
+          : s.scenario === "no_damage"
             ? "complete"
             : "potential_damage",
     };

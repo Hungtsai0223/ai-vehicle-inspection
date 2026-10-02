@@ -23,7 +23,10 @@ export function ExperimentTable() {
   return (
     <section className="card experiment">
       <h2>3D 列印車損辨識實驗</h2>
-      <p>模擬測試紀錄，待實際實驗數據替換。</p>
+      <p>透過控制距離、角度、光線與車損類型，評估模型辨識穩定性。</p>
+      <p className="experiment-demo-note">
+        以下為 UI 展示用模擬數據，待實驗完成後替換。
+      </p>
       <div className="filters">
         {[
           [

@@ -1,47 +1,64 @@
 import { Smartphone, MoveHorizontal, ArrowRight, ScanLine } from "lucide-react";
 import { Action, Card } from "@/components/ui/primitives";
 import { VehicleIllustration } from "@/components/vehicle/vehicle-illustration";
+const instructions = [
+  {
+    Icon: Smartphone,
+    title: "手機保持直立",
+    description: "保持手機穩定，鏡頭朝向車輛",
+  },
+  {
+    Icon: MoveHorizontal,
+    title: "保持適當距離",
+    description: "建議距離車輛約 1–2 公尺",
+  },
+  {
+    Icon: ArrowRight,
+    title: "依箭頭慢慢移動",
+    description: "沿車輛外圍緩慢走一圈",
+  },
+];
 export default function Guide() {
   return (
-    <div className="page">
-      <p className="page-step">還車流程 / 02</p>
+    <div className="page guide-page">
+      <p className="english guide-header">AI 智慧車況檢查</p>
       <h1>
         請沿車輛
         <br />
         慢慢走一圈
       </h1>
-      <p className="lead">跟著畫面指引，輕鬆完成外觀掃描。</p>
+      <p className="lead">系統會自動擷取清晰影像，不需要手動按快門</p>
       <div className="guide-vehicle">
         <VehicleIllustration />
         <div className="orbit">
-          <ArrowRight size={20} /> 360° Guided Scan
+          <ArrowRight size={20} />
+          360° Guided Scan
         </div>
       </div>
-      <ol className="guide-list">
-        {[
-          [Smartphone, "手機保持直立"],
-          [MoveHorizontal, "與車輛保持約 1–2 公尺"],
-          [ArrowRight, "依照畫面箭頭緩慢移動"],
-        ].map(([Icon, text], i) => {
-          const I = Icon as typeof Smartphone;
-          return (
-            <li key={text as string}>
-              <span>{i + 1}</span>
-              <I size={22} />
-              <strong>{text as string}</strong>
-            </li>
-          );
-        })}
+      <ol className="instruction-cards">
+        {instructions.map(({ Icon, title, description }, i) => (
+          <li key={title}>
+            <span className="instruction-number">{i + 1}</span>
+            <Icon size={21} />
+            <div>
+              <strong>{title}</strong>
+              <p>{description}</p>
+            </div>
+          </li>
+        ))}
       </ol>
       <Card className="hint">
         <ScanLine size={24} />
         <p>
-          AI 會自動擷取影像，
+          AI 會自動挑選最佳影格，
           <br />
-          <strong>不需要按快門</strong>
+          <strong>不需要一直按快門</strong>
         </p>
       </Card>
       <Action href="/scan">開始掃描</Action>
+      <Action href="/return" secondary>
+        返回
+      </Action>
     </div>
   );
 }
