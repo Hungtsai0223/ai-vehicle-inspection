@@ -2,6 +2,8 @@
 
 前端已能 create → 真實 JPEG multipart upload → complete → poll → result → /damage 或 /result。此里程碑沒有實作推論。
 
+詳盡 curl 與六個端點（包含 health）見 [AI_BACKEND_HANDOFF.md](./AI_BACKEND_HANDOFF.md)。契約版本 1.0。
+
 ## Five endpoints
 
 | Method | Endpoint                          | Response                                  |
@@ -37,7 +39,7 @@ NEXT_PUBLIC_DEV_AI_RESULT=potential_damage
 
 執行 `npm run dev`；從 /return → /scan-guide → /scan 選 Demo 可用真實 canvas JPEG bytes 走完整 HTTP 流程；真實相機使用既有 capture pipeline。Stub 五個 endpoints 位於 /api/dev/api/v1/inspections，約 3 秒處理，不執行 AI。
 
-開啟 /dev/integration，可測 Create、Connection、No Damage、Potential Damage，並選 processing_failure、result_timeout、incomplete、missing_images、500、503、upload_failure。Connection 透過 create 驗證契約，會建立空的開發紀錄。
+開啟 /dev/integration，可測 Create、Connection、No Damage、Potential Damage，並選 processing_failure、result_timeout、incomplete、missing_images、multiple_damage、unknown_values、500、503、upload_failure。Test Health 只 GET /health，不建立紀錄；Test Create 會建立空紀錄；Test Frame Upload 不啟動分析。
 
 也可在 API URL 加 query，例如 `http://localhost:3000/api/dev?result=no_damage`、`?result=processing_failure`、`?failure=upload_failure`；query 將保留到每個 endpoint。upload_failure 在每筆 inspection 的首次上傳失敗，再按重試可成功。result query 優先於 NEXT_PUBLIC_DEV_AI_RESULT。
 
@@ -55,7 +57,7 @@ Stub 只在 NODE_ENV=development 接受請求；production /dev/integration 與 
 
 /scan 上傳成功才進 /analyzing。成功上傳後本機 Blob/URL 釋放；sessionStorage 只含輕量 metadata。/analyzing 每約 1 秒依 backend stage 更新 UI，60 秒逾時顯示「AI 分析時間較長，請稍後再試。」與「重新取得結果」。不刪除 inspection session。
 
-refresh 後 /analyzing 可重新輪詢；refresh /result 或 /damage 可按「重新取得結果」。尚未上傳的實拍 Blob 不會序列化，refresh 需重新掃描。backend 應使批次上傳與 complete 可安全重試。
+refresh 後 /analyzing 可重新輪詢；refresh 已完成的 /result 或 /damage 會自動 GET result，失敗可按「重新取得結果」。尚未上傳的實拍 Blob 不會序列化，refresh 需重新掃描。backend 應使批次上傳與 complete 可安全重試。
 
 ## Exact teammate handoff
 

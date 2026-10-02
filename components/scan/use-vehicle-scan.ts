@@ -2,7 +2,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useInspection } from "@/components/inspection/inspection-context";
-import { inspectionErrorMessage } from "@/services/inspection-service";
+import {
+  inspectionErrorMessage,
+  InspectionApiError,
+} from "@/services/inspection-service";
 import { cameraMessages } from "@/lib/camera-access";
 import { prototypeScanDurationMs } from "@/lib/camera-frame-capture";
 import { releaseFramePreview } from "@/lib/frame-store";
@@ -31,6 +34,7 @@ export function useVehicleScan() {
     frames,
     setCameraMode,
     prepareAnalysis,
+    resetVersion,
   } = useInspection();
   const router = useRouter();
   const [prototypeProgress, setPrototypeProgress] = useState(0);
@@ -94,6 +98,13 @@ export function useVehicleScan() {
     setStatus,
     cancelRun,
   ]);
+  const lastReset = useRef(resetVersion);
+  useEffect(() => {
+    if (lastReset.current !== resetVersion) {
+      lastReset.current = resetVersion;
+      reset();
+    }
+  }, [resetVersion, reset]);
   const onFrameCapture = useCallback(
     (frame: CapturedFrame) => {
       if (phaseRef.current !== "scanning" || !mounted.current) {
@@ -126,7 +137,13 @@ export function useVehicleScan() {
       router.push("/analyzing");
     } catch (error) {
       if (!mounted.current || token !== run.current) return;
-      setError(inspectionErrorMessage(error));
+      setError(
+        error instanceof InspectionApiError &&
+          error.code === "NETWORK_ERROR" &&
+          !error.httpStatus
+          ? "網路連線中斷，目前掃描結果尚未成功送出。"
+          : inspectionErrorMessage(error),
+      );
       updatePhase("upload-error");
     }
   }, [prepareAnalysis, router, updatePhase]);
@@ -216,10 +233,8 @@ export function useVehicleScan() {
         setPrototypeProgress(0);
         setSharedProgress(0);
         setStatus("idle");
-        if (state === "paused") {
-          setCameraRequested(false);
-          setError(cameraMessages.paused);
-        }
+        setCameraRequested(false);
+        setError(cameraMessages[state]);
       }
     },
     [

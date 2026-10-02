@@ -81,10 +81,17 @@ function imageUrl(value: unknown): string | undefined {
     !/^https?:\/\//i.test(url)
   )
     invalid();
+  try {
+    new URL(url, "https://backend.invalid");
+  } catch {
+    invalid();
+  }
   return url;
 }
 function damage(value: unknown): DamageDetection {
   const d = record(value);
+  const rawPart = string(d.part);
+  const rawDamageType = string(d.damageType);
   if (typeof d.isPotentialNewDamage !== "boolean") invalid();
   const box = d.boundingBox == null ? undefined : record(d.boundingBox);
   const boundingBox = box
@@ -105,8 +112,14 @@ function damage(value: unknown): DamageDetection {
     invalid();
   return {
     id: string(d.id),
-    part: enumValue(d.part, parts),
-    damageType: enumValue(d.damageType, damageTypes),
+    part: (parts.includes(rawPart)
+      ? rawPart
+      : "unknown") as DamageDetection["part"],
+    damageType: (damageTypes.includes(rawDamageType)
+      ? rawDamageType
+      : "unknown") as DamageDetection["damageType"],
+    ...(!parts.includes(rawPart) ? { rawPart } : {}),
+    ...(!damageTypes.includes(rawDamageType) ? { rawDamageType } : {}),
     confidence: number(d.confidence, 1),
     isPotentialNewDamage: d.isPotentialNewDamage,
     boundingBox,
@@ -182,7 +195,9 @@ export function parseResult(
     keyFrameCount,
     missingAreas:
       (r.missingAreas as unknown[] | undefined)?.map((part) =>
-        enumValue(part, parts),
+        parts.includes(string(part))
+          ? (part as DamageDetection["part"])
+          : "unknown",
       ) ?? [],
     damages,
     createdAt,

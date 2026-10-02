@@ -1,0 +1,11 @@
+{
+  "inspectionId": "insp_001",
+  "status": "completed",
+  "detectionStatus": "no_damage",
+  "coverage": 0.97,
+  "scanDurationSeconds": 25.8,
+  "processingTimeSeconds": 2.41,
+  "keyFrameCount": 15,
+  "missingAreas": [],
+  "damages": []
+}

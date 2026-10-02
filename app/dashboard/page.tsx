@@ -74,7 +74,7 @@ export default function Dashboard() {
         <p>
           Frontend → Inspection Service → API Adapter → AI Backend
           <br />
-          <small>目前僅有前端與模擬 API，實際模型由團隊後續串接。</small>
+          <small>此展示使用模擬資料，實際模型待團隊串接。</small>
         </p>
         <Action href="/return">開啟使用者 Demo</Action>
       </div>

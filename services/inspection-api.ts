@@ -32,8 +32,12 @@ export interface InspectionApi {
   uploadInspectionFrames(
     id: string,
     frames: CapturedFrame[],
+    options?: ApiRequestOptions,
   ): Promise<UploadReceipt>;
-  completeInspection(id: string): Promise<InspectionSession>;
+  completeInspection(
+    id: string,
+    options?: ApiRequestOptions,
+  ): Promise<InspectionSession>;
   getInspectionStatus(
     id: string,
     options?: ApiRequestOptions,

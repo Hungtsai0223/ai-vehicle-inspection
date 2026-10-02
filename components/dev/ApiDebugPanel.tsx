@@ -13,6 +13,7 @@ export function ApiDebugPanel() {
     ["Frame buffer", String(ctx.frames.length)],
     ["Key frames", String(ctx.keyFrameCount)],
     ["Uploaded", String(ctx.uploadComplete)],
+    ["Upload state", ctx.transferStage],
     ["Backend stage", ctx.processingStage],
     ["Backend progress", `${Math.round(ctx.processingProgress)}%`],
     [

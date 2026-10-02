@@ -91,7 +91,8 @@ export default function Scan() {
         </fieldset>
         {mode === "real" && (
           <p className="camera-privacy-note">
-            影像僅用於本次車況檢查。Prototype 前端預設不會永久儲存影像。
+            Prototype
+            版本中的影像僅用於本次車況檢測流程；實際正式服務的保存與隱私政策需依營運規範訂定。
             <small>
               目前只暫存在瀏覽器記憶體。
               {ctx.mode === "API"
@@ -101,14 +102,16 @@ export default function Scan() {
           </p>
         )}
         <p className="portrait-suggestion">
-          建議將手機保持直立，以獲得最佳掃描體驗。
+          建議將手機保持直立，以獲得較完整的掃描畫面。
         </p>
         {scan.phase === "complete" && (
           <p className="scan-complete" role="status">
             <CheckCircle size={18} />
             {ctx.transferStage === "uploading"
-              ? "正在上傳關鍵影格"
-              : "正在準備 AI 分析"}
+              ? `正在上傳 ${ctx.keyFrameCount} 張關鍵影格`
+              : ctx.transferStage === "uploaded"
+                ? "影像上傳完成，正在準備分析"
+                : "正在準備影像"}
             <small>{ctx.keyFrameCount} 張關鍵影格</small>
           </p>
         )}
@@ -135,8 +138,10 @@ export default function Scan() {
         )}
         {mode === "demo" && ctx.mode === "MOCK" && ctx.poorNetwork && (
           <p role="status" className="notice">
-            網路狀況不佳，影像已暫存於裝置，恢復連線後將自動上傳。
-            <small>Demo：僅模擬提示，尚未實作離線暫存。</small>
+            網路連線中斷，目前掃描結果尚未成功送出。
+            <small>
+              Demo：僅模擬提示，需按「重新上傳」重試，尚未實作背景上傳。
+            </small>
           </p>
         )}
         {mode === "demo" &&
@@ -149,6 +154,12 @@ export default function Scan() {
           )}
         {scan.error && (
           <p role="alert" className="notice">
+            {scan.phase === "upload-error" && !ctx.uploadComplete && (
+              <strong>
+                影像上傳失敗
+                <br />
+              </strong>
+            )}
             {scan.error}
           </p>
         )}
@@ -162,7 +173,9 @@ export default function Scan() {
           }
         >
           {scan.phase === "upload-error"
-            ? "重試上傳／準備分析"
+            ? ctx.uploadComplete
+              ? "重新準備分析"
+              : "重新上傳"
             : scan.phase === "complete"
               ? "掃描完成，準備分析…"
               : scan.phase === "opening"
@@ -174,7 +187,9 @@ export default function Scan() {
                     ? "完成掃描"
                     : "正在擷取影像…"
                   : mode === "real"
-                    ? "開始真實掃描"
+                    ? scan.cameraState !== "idle"
+                      ? "重新開啟相機"
+                      : "開始真實掃描"
                     : "開始模擬掃描"}
         </Button>
         {mode === "demo" && ctx.mode === "MOCK" && (

@@ -80,3 +80,11 @@ export function saveInspectionSession(session: SavedInspectionSession) {
     /* Storage may be blocked; in-memory navigation still works. */
   }
 }
+export function clearInspectionSession() {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.removeItem(sessionStorageKey);
+  } catch {
+    /* Optional storage. */
+  }
+}

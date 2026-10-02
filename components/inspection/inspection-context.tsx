@@ -23,6 +23,7 @@ import {
 import {
   readInspectionSession,
   saveInspectionSession,
+  clearInspectionSession,
   type SavedInspectionSession,
 } from "@/lib/inspection-session";
 import type { CapturedFrame } from "@/types/frame";
@@ -52,6 +53,9 @@ const initialSession = (): SavedInspectionSession => ({
 function useInspectionState() {
   const [session, setSession] = useState(initialSession);
   const current = useRef(session);
+  const generation = useRef(0);
+  const activeTransfer = useRef<AbortController | null>(null);
+  const [resetVersion, setResetVersion] = useState(0);
   const [sessionReady, setSessionReady] = useState(false);
   const [scenario, setScenario] = useState<Scenario>(
     mockConfig.defaultScenario,
@@ -67,7 +71,7 @@ function useInspectionState() {
     useState<ProcessingStage>("image_validation");
   const [apiError, setApiError] = useState("");
   const [transferStage, setTransferStage] = useState<
-    "idle" | "preparing" | "uploading" | "starting"
+    "idle" | "preparing" | "uploading" | "uploaded" | "failed"
   >("idle");
   const patch = useCallback((value: Partial<SavedInspectionSession>) => {
     current.current = { ...current.current, ...value };
@@ -81,6 +85,11 @@ function useInspectionState() {
       if (saved) {
         patch(saved);
         setScenario(saved.scenario);
+        if (saved.uploadComplete) setTransferStage("uploaded");
+        if (saved.status === "completed") {
+          setProcessingProgress(100);
+          setProcessingStage("completed");
+        }
         if (saved.uploadComplete)
           inspectionService.restoreMockSession(
             saved.inspectionId,
@@ -98,7 +107,13 @@ function useInspectionState() {
   useEffect(() => {
     if (sessionReady && session.inspectionId) saveInspectionSession(session);
   }, [session, sessionReady]);
-  useEffect(() => () => frameStore.clear(), [frameStore]);
+  useEffect(
+    () => () => {
+      activeTransfer.current?.abort();
+      frameStore.clear();
+    },
+    [frameStore],
+  );
   const releaseUploadedFrames = useCallback(() => {
     frameStore.clear();
     setFrames([]);
@@ -134,8 +149,30 @@ function useInspectionState() {
     (cameraMode: CameraMode) => patch({ cameraMode }),
     [patch],
   );
+  const resetInspection = useCallback(() => {
+    generation.current++;
+    activeTransfer.current?.abort();
+    inspectionService.forgetInspection(current.current.inspectionId);
+    releaseUploadedFrames();
+    clearInspectionSession();
+    patch(initialSession());
+    setResult(null);
+    setApiError("");
+    setProgress(0);
+    setRecaptured(false);
+    setScenario(mockConfig.defaultScenario);
+    setPoorNetwork(false);
+    setProcessingProgress(0);
+    setProcessingStage("image_validation");
+    setTransferStage("idle");
+    setResetVersion((value) => value + 1);
+  }, [patch, releaseUploadedFrames]);
   const begin = useCallback(
     async (signal?: AbortSignal) => {
+      const token = ++generation.current;
+      activeTransfer.current?.abort();
+      inspectionService.forgetInspection(current.current.inspectionId);
+      clearInspectionSession();
       clearFrames();
       setResult(null);
       setApiError("");
@@ -152,7 +189,8 @@ function useInspectionState() {
         { vehicle, scenario },
         { signal },
       );
-      if (signal?.aborted) throw new InspectionApiError("ABORTED");
+      if (signal?.aborted || token !== generation.current)
+        throw new InspectionApiError("ABORTED");
       patch({
         inspectionId,
         status: "scanning",
@@ -170,9 +208,18 @@ function useInspectionState() {
   const prepareAnalysis = useCallback(
     async (scanDuration: number, signal?: AbortSignal) => {
       const id = current.current.inspectionId;
-      if (!id) throw new InspectionApiError("UPLOAD_FAILED");
+      activeTransfer.current?.abort();
+      const transfer = new AbortController();
+      activeTransfer.current = transfer;
+      const abort = () => transfer.abort();
+      signal?.addEventListener("abort", abort, { once: true });
+      if (signal?.aborted) transfer.abort();
+      if (!id) {
+        signal?.removeEventListener("abort", abort);
+        throw new InspectionApiError("INVALID_FRAMES");
+      }
       const check = () => {
-        if (signal?.aborted || current.current.inspectionId !== id)
+        if (transfer.signal.aborted || current.current.inspectionId !== id)
           throw new InspectionApiError("ABORTED");
       };
       setApiError("");
@@ -188,7 +235,10 @@ function useInspectionState() {
             selected.some((f) => !f.blob)
           ) {
             const generated = await materializeDemoFrames(selected);
-            if (signal?.aborted) {
+            if (
+              transfer.signal.aborted ||
+              current.current.inspectionId !== id
+            ) {
               generated.forEach(releaseFramePreview);
               check();
             }
@@ -199,28 +249,36 @@ function useInspectionState() {
           check();
           setTransferStage("uploading");
           patch({ keyFrameCount: selected.length });
-          await inspectionService.uploadInspectionFrames(id, selected);
+          await inspectionService.uploadInspectionFrames(id, selected, {
+            signal: transfer.signal,
+          });
           check();
           patch({ uploadComplete: true });
           // Backend has the bytes; previews and blobs are no longer needed for analysis.
           releaseUploadedFrames();
         }
         check();
-        setTransferStage("starting");
-        const response = await inspectionService.completeInspection(id);
+        setTransferStage("uploaded");
+        const response = await inspectionService.completeInspection(id, {
+          signal: transfer.signal,
+        });
         check();
         patch({ status: response.status });
         setProcessingProgress(0);
         setProcessingStage("image_validation");
-        setTransferStage("idle");
         return id;
       } catch (error) {
-        if (!signal?.aborted && current.current.inspectionId === id) {
+        if (!transfer.signal.aborted && current.current.inspectionId === id) {
           setApiError(inspectionErrorMessage(error));
           patch({ status: "failed" });
-          setTransferStage("idle");
+          setTransferStage(
+            current.current.uploadComplete ? "uploaded" : "failed",
+          );
         }
         throw error;
+      } finally {
+        signal?.removeEventListener("abort", abort);
+        if (activeTransfer.current === transfer) activeTransfer.current = null;
       }
     },
     [frameStore, patch, releaseUploadedFrames],
@@ -241,6 +299,7 @@ function useInspectionState() {
         status: "completed",
         cameraMode: "demo",
       });
+      setTransferStage("uploaded");
       setProcessingProgress(100);
       setProcessingStage("completed");
     },
@@ -248,6 +307,8 @@ function useInspectionState() {
   );
   return {
     acceptCompletedResult,
+    resetInspection,
+    resetVersion,
     scenario,
     setScenario,
     inspectionId: session.inspectionId,

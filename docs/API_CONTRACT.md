@@ -1,6 +1,12 @@
-# AI Vehicle Inspection API Contract v1
+# AI Vehicle Inspection API Contract 1.0
 
 UI → InspectionService → Mock / HTTP adapter → AI backend。契約不依賴模型架構。
+
+`API_CONTRACT_VERSION = "1.0"` 定義於 lib/api-config.ts。版本為團隊協調用常數，不額外要求 HTTP version header。
+
+## 0. Health
+
+`GET /health` → `{ "status": "ok" }`。開發 stub `/api/dev/health` 另含 `service: "ai-vehicle-inspection-dev-stub"`。Health 不建立 inspection；404 或資料缺少 status=ok 為 unknown，網路/非成功回應為 unreachable。
 
 ## Common conventions
 
@@ -37,7 +43,7 @@ Base URL 使用 `NEXT_PUBLIC_AI_API_URL`，例如 `http://localhost:8000`；下�
 
 `POST /api/v1/inspections/{id}/frames`，multipart/form-data：
 
-- 重複 **`frames`** 欄位：實際 JPEG/PNG bytes，每個檔名為影格 id.jpg/png。
+- 重複 **`frames`** 欄位：實際 JPEG/PNG/WebP bytes，每個檔名為影格 id.jpg/png/webp。前端拒絕零張、無 Blob、空檔、不支援 MIME、無效 timestamp/metadata。相機擷取最長邊 1280px、JPEG quality 0.8，不放大低解析度。
 - **`metadata`**：只出現一次，JSON 字串，順序與影像一致。
 - 不再使用 frames[]、timestamps[] 或 viewAngles[]。
 - **不可手動指定 Content-Type**；fetch 自動產生 multipart boundary（[MDN 說明](https://developer.mozilla.org/en-US/docs/Web/API/XMLHttpRequest_API/Using_FormData_Objects)）。
@@ -88,7 +94,7 @@ accepted 必須等於送出影格數。相同 inspectionId 的批次重傳應替
 }
 ```
 
-stage：image_validation → vehicle_part_detection → damage_detection → before_after_comparison → completed。完成為 completed / 100；失敗為 failed。前端每約 1 秒輪詢，等待上限 60 秒，單次 request 上限 15 秒；完成、失敗、逾時或頁面卸載後停止。AbortController 取消進行中的讀取。
+stage：image_validation → vehicle_part_detection → damage_detection → before_after_comparison → completed。完成為 completed / 100；失敗為 failed。前端每約 1 秒輪詢，等待上限 60 秒，單次 status request 上限 10 秒（最多 2 次 GET 重試仍受 60 秒總上限限制）；完成、失敗、逾時或頁面卸載後停止。AbortController 取消進行中的讀取。
 
 ## 5. Get result
 
@@ -128,11 +134,17 @@ boundingBox 可省略或 null；x/y/width/height 為影像座標 0–1，寬高 
 
 `missingAreas: ["right_rear_door"]` 顯示「部分區域未完整掃描 · Unknown」。就算 detectionStatus=no_damage，這些部位仍是未確認。
 
+未知但非空的 part / damageType 會映射為 unknown，畫面顯示「未知區域」／「疑似異常」；原始值保留於 rawPart / rawDamageType developer JSON。未知 missingAreas 映射 Unknown。缺欄、型別錯誤、重複 id、非法 confidence/coverage（超出 0–1）與不一致 detectionStatus 一律 INVALID_RESPONSE。
+
+多筆 damages 全部保留；/damage 可切換，/result 列出所有偵測。AI Confidence 高 ≥0.85、中 ≥0.65 且 <0.85、低 <0.65，只表示模型信心度，不判定責任。
+
+範例檔：[potential damage](examples/result-potential-damage.json)、[no damage](examples/result-no-damage.json)。
+
 ## Errors and retries
 
 400 invalid request；404 unknown inspection；409 state conflict；413 upload too large；422 cannot process；500 backend failure；503 service unavailable。UI 僅呈現繁體中文安全錯誤，不讀取或輸出後端原始 traceback。
 
-上傳失敗留在 /scan，影格只保留記憶體供重試。上傳成功立即釋放本機 Blob/URL，之後的 complete 與分析重試只用 inspectionId。sessionStorage 只保存 id、車輛、duration、counts、mode、status、uploadComplete 等輕量資料，沒有照片或結果 JSON；刷新後可從 /analyzing 再取結果。未上傳的 Blob 在刷新後無法恢復。
+上傳失敗留在 /scan，影格只保留記憶體供重試。上傳成功立即釋放本機 Blob/URL，之後的 complete 與分析重試只用 inspectionId。sessionStorage 只保存 id、車輛、duration、counts、mode、status、uploadComplete 等輕量資料，沒有照片或結果 JSON；刷新 /analyzing 只恢復 GET 輪詢，不重送 complete POST；刷新已完成的 /result 或 /damage 自動 GET result，不要求重掃。未上傳的 Blob 在刷新後無法恢復。
 
 ## AI TEAM MUST RETURN
 
@@ -141,3 +153,5 @@ boundingBox 可省略或 null；x/y/width/height 為影像座標 0–1，寬高 
 完整結果需 inspectionId、status、detectionStatus、coverage、scanDurationSeconds、processingTimeSeconds、keyFrameCount、damages，並建議回傳 missingAreas。請確認 status stage、圖片 origin、CORS、accepted 全批確認及 complete 冪等行為。
 
 AI 團隊不需要知道前端 rendering 細節；前端不依賴 YOLO/SAM 版本、PyTorch 架構或 training strategy。
+
+fetchWithTimeout 包含 body 讀取：一般 15 秒、上傳 30 秒、GET 10 秒。只重試暫時性 GET 失敗 2 次（250/500ms）；POST 不自動重試。Complete 應冪等；upload 手動重試原 id。不提供自動背景上傳或假的 byte progress。

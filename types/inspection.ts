@@ -30,6 +30,9 @@ export interface DamageDetection {
   id: string;
   part: VehiclePart;
   damageType: DamageType;
+  /** Unrecognized backend values retained only for developer diagnostics. */
+  rawPart?: string;
+  rawDamageType?: string;
   confidence: number;
   isPotentialNewDamage: boolean;
   /** Normalized image coordinates, each in 0–1. */

@@ -39,16 +39,24 @@ export function createInspectionService(
   }
   return {
     mode,
+    forgetInspection: (id: string) => {
+      uploads.delete(id);
+      completions.delete(id);
+    },
     createInspection: (
       input: CreateInspectionInput = { vehicle: mockVehicle },
       options?: ApiRequestOptions,
     ) => api.createInspection(input, options),
-    uploadInspectionFrames: (id: string, frames: CapturedFrame[]) =>
+    uploadInspectionFrames: (
+      id: string,
+      frames: CapturedFrame[],
+      options?: ApiRequestOptions,
+    ) =>
       once(uploads, id, () =>
-        api.uploadInspectionFrames(id, selectKeyFrames(frames)),
+        api.uploadInspectionFrames(id, selectKeyFrames(frames), options),
       ),
-    completeInspection: (id: string) =>
-      once(completions, id, () => api.completeInspection(id)),
+    completeInspection: (id: string, options?: ApiRequestOptions) =>
+      once(completions, id, () => api.completeInspection(id, options)),
     getInspectionStatus: (id: string, options?: ApiRequestOptions) =>
       api.getInspectionStatus(id, options),
     getInspectionResult: (id: string, options?: ApiRequestOptions) =>

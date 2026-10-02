@@ -61,14 +61,22 @@ export function RealCameraPreview({
     let cancelled = false;
     const video = videoRef.current;
     const tracks: MediaStreamTrack[] = [];
+    let interruption: ReturnType<typeof setTimeout> | undefined;
     const pause = () => {
       if (cancelled) return;
       cancelled = true;
+      clearTimeout(interruption);
       session.close();
       if (video) video.srcObject = null;
       setPermission("paused");
       notifyState("paused");
     };
+    const interrupted = () => {
+      clearTimeout(interruption);
+      interruption = setTimeout(pause, 1500);
+    };
+    const resumed = () => clearTimeout(interruption);
+    video?.addEventListener("error", pause);
     const visibility = () => {
       if (document.hidden) pause();
     };
@@ -85,6 +93,8 @@ export function RealCameraPreview({
           for (const track of stream.getTracks()) {
             tracks.push(track);
             track.addEventListener("ended", pause);
+            track.addEventListener("mute", interrupted);
+            track.addEventListener("unmute", resumed);
           }
           await video.play();
           if (cancelled) return;
@@ -103,7 +113,13 @@ export function RealCameraPreview({
       cancelled = true;
       session.close();
       if (video) video.srcObject = null;
-      tracks.forEach((track) => track.removeEventListener("ended", pause));
+      clearTimeout(interruption);
+      video?.removeEventListener("error", pause);
+      tracks.forEach((track) => {
+        track.removeEventListener("ended", pause);
+        track.removeEventListener("mute", interrupted);
+        track.removeEventListener("unmute", resumed);
+      });
       document.removeEventListener("visibilitychange", visibility);
       window.removeEventListener("pagehide", pause);
     };

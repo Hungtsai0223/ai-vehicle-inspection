@@ -1,0 +1,38 @@
+{
+  "inspectionId": "insp_001",
+  "status": "completed",
+  "detectionStatus": "potential_damage",
+  "coverage": 0.96,
+  "scanDurationSeconds": 27.4,
+  "processingTimeSeconds": 2.84,
+  "keyFrameCount": 16,
+  "missingAreas": [],
+  "damages": [
+    {
+      "id": "damage_001",
+      "part": "left_front_door",
+      "damageType": "scratch",
+      "confidence": 0.91,
+      "isPotentialNewDamage": true,
+      "boundingBox": {
+        "x": 0.38,
+        "y": 0.42,
+        "width": 0.18,
+        "height": 0.13
+      },
+      "beforeImageUrl": null,
+      "afterImageUrl": "/results/frame_014.jpg",
+      "maskImageUrl": null
+    },
+    {
+      "id": "damage_002",
+      "part": "rear_bumper",
+      "damageType": "dent",
+      "confidence": 0.84,
+      "isPotentialNewDamage": false,
+      "beforeImageUrl": null,
+      "afterImageUrl": null,
+      "maskImageUrl": null
+    }
+  ]
+}

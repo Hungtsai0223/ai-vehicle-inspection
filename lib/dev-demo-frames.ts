@@ -1,8 +1,7 @@
+import { getApiBaseUrl } from "./api-config";
 import type { CapturedFrame } from "../types/frame";
 /** Only the local development HTTP stub accepts generated DEMO image bytes. */
-export function isDevelopmentStub(
-  baseUrl = process.env.NEXT_PUBLIC_AI_API_URL ?? "",
-) {
+export function isDevelopmentStub(baseUrl = getApiBaseUrl()) {
   return (
     process.env.NODE_ENV === "development" &&
     /\/api\/dev\/?(?:\?|$)/.test(baseUrl)

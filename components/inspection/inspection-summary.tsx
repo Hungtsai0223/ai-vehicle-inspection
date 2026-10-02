@@ -1,6 +1,9 @@
 import type { InspectionResult } from "@/types/inspection";
 const duration = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 });
 export function InspectionSummary({ result }: { result: InspectionResult }) {
+  const confidence = result.damages.map((d) => Math.round(d.confidence * 100));
+  const low = Math.min(...confidence),
+    high = Math.max(...confidence);
   const values = [
     ["掃描時間", `${duration.format(result.scanDurationSeconds)} sec`],
     ["分析時間", `${duration.format(result.processingTimeSeconds)} sec`],
@@ -10,7 +13,9 @@ export function InspectionSummary({ result }: { result: InspectionResult }) {
     [
       "AI 信心度",
       result.damages.length
-        ? `${Math.round(result.damages[0].confidence * 100)}%`
+        ? low === high
+          ? `${low}%`
+          : `${low}–${high}%`
         : "—",
     ],
   ];

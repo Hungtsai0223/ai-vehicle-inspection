@@ -15,26 +15,28 @@ import {
   parseSession,
   parseUpload,
 } from "./inspection-response";
+import {
+  getApiBaseUrl,
+  resolveApiUrl,
+  REQUEST_TIMEOUT_MS,
+  UPLOAD_TIMEOUT_MS,
+  STATUS_TIMEOUT_MS,
+} from "../lib/api-config";
+import { fetchWithTimeout } from "./fetch-with-timeout";
+import { validateUploadFrames } from "../lib/frame-upload-validation";
 export class HttpInspectionApi implements InspectionApi {
   private readonly metadata = new Map<
     string,
     { vehicle: Vehicle; createdAt: string }
   >();
   constructor(
-    private readonly baseUrl = process.env.NEXT_PUBLIC_AI_API_URL ??
-      "http://localhost:8000",
-    private readonly timeoutMs = 15_000,
+    private readonly baseUrl = getApiBaseUrl(),
+    private readonly timeoutMs = REQUEST_TIMEOUT_MS,
     private readonly fetcher: typeof fetch = (input, init) =>
       fetch(input, init),
   ) {}
   private url(path: string) {
-    const url = new URL(
-      this.baseUrl,
-      typeof window === "undefined"
-        ? "http://localhost"
-        : window.location.origin,
-    );
-    url.pathname = url.pathname.replace(/\/$/, "") + path;
+    const url = resolveApiUrl(this.baseUrl, path);
     if (
       process.env.NODE_ENV === "development" &&
       url.pathname.startsWith("/api/dev/") &&
@@ -54,48 +56,29 @@ export class HttpInspectionApi implements InspectionApi {
     init: RequestInit = {},
     failure: InspectionApiErrorCode = "PROCESSING_FAILED",
   ): Promise<unknown> {
-    const controller = new AbortController();
-    const externalSignal = init.signal;
-    const abort = () => controller.abort();
-    externalSignal?.addEventListener("abort", abort, { once: true });
-    if (externalSignal?.aborted) controller.abort();
-    const timeout = setTimeout(abort, this.timeoutMs);
-    try {
-      const response = await this.fetcher(this.url(path), {
-        ...init,
-        signal: controller.signal,
-        cache: "no-store",
-      });
-      if (!response.ok) {
-        // Never read/echo backend error bodies, which may contain private/internal details.
-        throw new InspectionApiError(
-          response.status === 503 ? "NETWORK_ERROR" : failure,
-          { path, status: response.status },
-        );
-      }
-      try {
-        return await response.json();
-      } catch (error) {
-        if (controller.signal.aborted)
+    return fetchWithTimeout(this.url(path), init, {
+      timeoutMs: path.endsWith("/frames")
+        ? this.timeoutMs === REQUEST_TIMEOUT_MS
+          ? UPLOAD_TIMEOUT_MS
+          : this.timeoutMs
+        : init.method === "POST"
+          ? this.timeoutMs
+          : Math.min(this.timeoutMs, STATUS_TIMEOUT_MS),
+      fetcher: this.fetcher,
+      readResponse: async (response) => {
+        if (!response.ok)
           throw new InspectionApiError(
-            externalSignal?.aborted ? "ABORTED" : "TIMEOUT",
+            response.status === 503 ? "NETWORK_ERROR" : failure,
+            { path, status: response.status },
+            response.status,
           );
-        throw new InspectionApiError("INVALID_RESPONSE", error);
-      }
-    } catch (error) {
-      if (error instanceof InspectionApiError) throw error;
-      throw new InspectionApiError(
-        externalSignal?.aborted
-          ? "ABORTED"
-          : controller.signal.aborted
-            ? "TIMEOUT"
-            : "NETWORK_ERROR",
-        error,
-      );
-    } finally {
-      clearTimeout(timeout);
-      externalSignal?.removeEventListener("abort", abort);
-    }
+        try {
+          return await response.json();
+        } catch {
+          throw new InspectionApiError("INVALID_RESPONSE");
+        }
+      },
+    });
   }
   async createInspection(
     { vehicle }: CreateInspectionInput,
@@ -125,28 +108,18 @@ export class HttpInspectionApi implements InspectionApi {
     });
     return result;
   }
-  async uploadInspectionFrames(id: string, frames: CapturedFrame[]) {
-    if (
-      !frames.length ||
-      frames.some(
-        (f) =>
-          !f.blob?.size ||
-          !["image/jpeg", "image/png"].includes(f.blob.type) ||
-          !Number.isFinite(f.timestamp) ||
-          f.timestamp < 0,
-      )
-    ) {
-      throw new InspectionApiError(
-        "UPLOAD_FAILED",
-        "Real image bytes are required; mock metadata cannot be sent to an AI backend",
-      );
-    }
+  async uploadInspectionFrames(
+    id: string,
+    frames: CapturedFrame[],
+    options: ApiRequestOptions = {},
+  ) {
+    validateUploadFrames(frames);
     const body = new FormData();
     for (const frame of frames) {
       body.append(
         "frames",
         frame.blob!,
-        `${frame.id}.${frame.blob!.type === "image/png" ? "png" : "jpg"}`,
+        `${frame.id}.${frame.blob!.type === "image/png" ? "png" : frame.blob!.type === "image/webp" ? "webp" : "jpg"}`,
       );
     }
     body.append(
@@ -164,15 +137,18 @@ export class HttpInspectionApi implements InspectionApi {
     return parseUpload(
       await this.request(
         this.path(id, "/frames"),
-        { method: "POST", body },
+        { method: "POST", body, signal: options.signal },
         "UPLOAD_FAILED",
       ),
       frames.length,
     );
   }
-  async completeInspection(id: string) {
+  async completeInspection(id: string, options: ApiRequestOptions = {}) {
     const result = parseSession(
-      await this.request(this.path(id, "/complete"), { method: "POST" }),
+      await this.request(this.path(id, "/complete"), {
+        method: "POST",
+        signal: options.signal,
+      }),
       id,
     );
     if (!["processing", "completed"].includes(result.status))

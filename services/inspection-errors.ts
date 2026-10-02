@@ -3,6 +3,7 @@ export type InspectionApiErrorCode =
   | "UPLOAD_FAILED"
   | "PROCESSING_FAILED"
   | "INVALID_RESPONSE"
+  | "INVALID_FRAMES"
   | "TIMEOUT"
   | "ABORTED";
 const messages: Record<InspectionApiErrorCode, string> = {
@@ -10,6 +11,7 @@ const messages: Record<InspectionApiErrorCode, string> = {
   UPLOAD_FAILED: "影像上傳失敗，系統將保留已完成的掃描資料。",
   PROCESSING_FAILED: "AI 分析暫時無法完成，請由人工協助確認車況。",
   INVALID_RESPONSE: "分析服務回傳的資料不完整，請稍後重試。",
+  INVALID_FRAMES: "沒有可供分析的有效影像，請重新掃描。",
   TIMEOUT: "AI 分析時間較長，請稍後再試。",
   ABORTED: "已停止本次請求。",
 };
@@ -17,6 +19,7 @@ export class InspectionApiError extends Error {
   constructor(
     public readonly code: InspectionApiErrorCode,
     details?: unknown,
+    public readonly httpStatus?: number,
   ) {
     super(messages[code]);
     this.name = "InspectionApiError";

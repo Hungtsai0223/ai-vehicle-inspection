@@ -25,7 +25,7 @@
 5. 比較租車前、還車時與 AI Mask 示意影像，點擊車損標記會選取對應卡片。「完成還車」顯示完成狀態；「查看完整檢測報告」前往 `/dashboard`。
 6. 在掃描頁展開 Demo Controls，可模擬六種品質狀態、疑似異常、無異常、覆蓋不足與網路不佳提示。無異常直接進入結果；覆蓋不足以 Unknown 顯示，不阻擋完成。
 
-輕量 inspection session 以 sessionStorage 保存 id、車輛、掃描時間、影格數、模式與狀態。成功上傳後的 /analyzing 可在重新整理後恢復；/result 或 /damage 可按「重新取得結果」。影格 Blob 僅在記憶體；未上傳前重新整理需重新掃描。沒有 localStorage 或 IndexedDB 照片保存。
+輕量 inspection session 以 sessionStorage 保存 id、車輛、掃描時間、影格數、模式與狀態。成功上傳後的 /analyzing 可在重新整理後恢復；/result 與 /damage 會自動重新取得已完成結果，失敗可重試。影格 Blob 僅在記憶體；未上傳前重新整理需重新掃描。沒有 localStorage 或 IndexedDB 照片保存。
 
 ## Architecture
 
@@ -41,7 +41,18 @@ Next.js 16.3.8、React 19.3、TypeScript、Tailwind CSS 4、Lucide React、Frame
 
 ## Current Status
 
-Frontend MVP，AI backend currently mocked。沿用既有 `/return` 設計，沒有重建專案。
+| Area                 | Status                             |
+| -------------------- | ---------------------------------- |
+| Frontend             | complete                           |
+| Mobile Camera        | prototype complete；實機驗證待進行 |
+| Key Frame Pipeline   | complete                           |
+| Mock API             | complete                           |
+| HTTP Integration     | complete                           |
+| AI Backend           | pending teammate integration       |
+| 3D Model             | future enhancement                 |
+| Experimental Metrics | pending real experiment results    |
+
+沿用既有 UI。此版本完成 Integration Hardening + Mobile Deployment Readiness。
 
 ## Current MVP
 
@@ -63,12 +74,12 @@ Frontend MVP，AI backend currently mocked。沿用既有 `/return` 設計，沒
 
 ```dotenv
 NEXT_PUBLIC_USE_MOCK_AI=true
-NEXT_PUBLIC_AI_API_URL=http://localhost:8000
+NEXT_PUBLIC_AI_API_URL=http://localhost:3000/api/dev
 ```
 
 預設或 true 使用 Mock；只有明確設定 false 才使用 HTTP adapter。複製到 `.env.local` 後重啟 dev server，production 需重新 build。NEXT_PUBLIC 變數會公開，不可保存 API 密鑰。Mock create 延遲 300 ms、upload 500 ms、processing 約 3 秒，無需後端。
 
-HTTP adapter 提供 15 秒 request timeout、回應 schema 驗證與安全中文錯誤。掃描頁先上傳 → complete → /analyzing 輪詢（HTTP 每約 1 秒、最多 60 秒）→ 結果分流。失敗上傳保留記憶體影格供重試；成功上傳後釋放 Blob/URL。AbortController 在卸載、逾時或停止時取消讀取；service 共用成功的 mutations 避免重複提交。
+HTTP adapter 使用 fetchWithTimeout：一般請求 15 秒、影格上傳 30 秒、狀態／結果讀取 10 秒，含 response body。GET 遇 network、timeout、408、429、5xx 最多再試 2 次（250/500 ms backoff）；INVALID_RESPONSE 與其他 4xx 不重試。POST create/upload/complete 不自動重送，upload 與 complete 由使用者重試同一 inspectionId。提供回應 schema 驗證與安全中文錯誤。掃描頁先上傳 → complete → /analyzing 輪詢（HTTP 每約 1 秒、最多 60 秒）→ 結果分流。失敗上傳保留記憶體影格供重試；成功上傳後釋放 Blob/URL。AbortController 在卸載、逾時或停止時取消讀取；service 共用成功的 mutations 避免重複提交。
 
 ## HTTP Development Integration
 
@@ -82,9 +93,9 @@ NEXT_PUBLIC_DEV_AI_RESULT=potential_damage
 
 設定 `.env.local` 並重啟 `npm run dev`。原 Demo scan 在此開發 stub 模式會產生明確標記 DEMO 的實際 JPEG Blob，經真正 multipart HTTP 請求傳送；真實相機也可沿用。Stub 處理約 3 秒，沒有 AI。
 
-開啟 `/dev/integration` 測試五端點、上傳數、最後狀態與 raw result。可測 no_damage、potential_damage、processing_failure、result_timeout、Unknown 漏掃、缺圖、500、503、upload_failure。API URL 支援 `?result=no_damage` 或 `?failure=upload_failure`，整個掃描流程也會套用。Stub 與除錯頁在 production 回 404；影像僅存 server 記憶體（10 筆、15 分鐘 TTL），重啟即清除。
+開啟 `/dev/integration` 測試五端點、上傳數、最後狀態與 raw result。可測 health、create、獨立 frame upload、no_damage、potential_damage、processing_failure、result_timeout、Unknown 漏掃、缺圖、多筆異常、未知 enum、500、503、upload_failure 與 Reset Session。健康檢查不建立 inspection。API URL 支援 `?result=no_damage` 或 `?failure=upload_failure`，整個掃描流程也會套用。Stub 與除錯頁在 production 回 404；影像僅存 server 記憶體（10 筆、15 分鐘 TTL），重啟即清除。
 
-跨來源 backend 的 CORS 與 exact AI team handoff 見 [AI_INTEGRATION_GUIDE](docs/AI_INTEGRATION_GUIDE.md)。
+跨來源 backend 的 CORS 與 exact AI team handoff 見 [AI_BACKEND_HANDOFF](docs/AI_BACKEND_HANDOFF.md)。契約版本為 `API_CONTRACT_VERSION = "1.0"`，僅文件常數，沒有額外 version header。
 
 開發環境提供可摺疊 API Debug：session ID、MOCK/API、相機模式、已擷取／保留影格數、coverage、processing status、raw result JSON，以及 Key Frames 縮圖。AI Result scenario 選項也僅在 development 顯示，production 不顯示除錯面板。
 
@@ -121,7 +132,7 @@ npm run format
 5. Prototype 時間引導約 24 秒，最多自動走到 95%。只有至少 12 張有效影格且有四個估計方向時才能按「完成掃描」；不會只因時間到了自動結束。方位與進度不是 AI 車身覆蓋判定。
 6. 按完成後關閉相機，分組選出最多 16 張，繼續原本 `/analyzing → /damage 或 /result`。預設 Mock AI 不會傳送相機影像，也不分析照片內容。
 7. 在 development 的 API Debug 可於上傳前展開 Key Frames；成功上傳後本機影格釋放，保留影格數與 inspectionId。production 沒有此面板。
-8. 切到背景、離開掃描頁、切回 Demo、拒絕權限、關閉裝置鏡頭等情境都應停止 tracks。若權限被拒絕，可修改瀏覽器設定後重試，或選「改用 Demo 模式」。
+8. 切到背景、離開掃描頁、切回 Demo、拒絕權限、關閉裝置鏡頭等情境都應停止 tracks。若權限被拒絕，可修改瀏覽器設定後按「重新開啟相機」，或選 Demo。track ended、持續 mute 1.5 秒、video error 或背景切換會停止串流，顯示「相機已停止，請重新開啟相機。」；重新開始會清除未完成影格，不拼接不同掃描。
 
 亮度只使用 32×32 canvas 的平均 luminance（0–1），低於 0.15 提示較暗；blurScore、vehicleCoverage 尚未計算。沒有實作車損、車體部位、OCR 或其他 AI 判斷。
 
@@ -179,6 +190,34 @@ InspectionStatus：idle / scanning / uploading / processing / completed / failed
 Dashboard 的 94.2% accuracy、2.8 秒 detection、28.6 秒完整檢查、96% coverage、各類別辨識率及 3D 列印實驗表格均為 **MOCK DATA，非實際測量**。63% time reduction 僅為示範數值的四捨五入結果。展示時請明確說明模型尚未整合，數字須待團隊提供實際實驗結果後替換。
 
 AI 僅協助篩選疑似異常，不直接作為責任判定依據。
+
+## Environment Presets
+
+| Preset                   | USE_MOCK_AI | AI_API_URL                                     | DEV_AI_RESULT                   |
+| ------------------------ | ----------- | ---------------------------------------------- | ------------------------------- |
+| LOCAL DEMO / Vercel demo | true        | 可省略                                         | 可省略                          |
+| HTTP DEV STUB            | false       | http://localhost:3000/api/dev                  | potential_damage 或其他開發情境 |
+| REAL AI BACKEND          | false       | https://example-ai-backend.com（換成團隊 URL） | 可省略                          |
+
+設定 `.env.local` 後重啟；Vercel NEXT_PUBLIC 設定變更後重新部署/build。正常 UI 不顯示後端連線指標；Backend Connected / Backend Unreachable / Mock Mode 只在開發測試頁使用。
+
+## Vercel Deployment Readiness
+
+使用 Next.js preset，Root Directory 設為本專案目錄，Install `npm ci`，Build `npm run build`，不用 static export、額外 server 或 vercel.json。
+
+Vercel Preview/Production 環境變數：`NEXT_PUBLIC_USE_MOCK_AI`、`NEXT_PUBLIC_AI_API_URL`、`NEXT_PUBLIC_DEV_AI_RESULT`（只限本機 development stub，正式部署可省略）。第一版 Hackathon demo 設 Mock=true；接真實 backend 時改 false + 可由手機到達的 HTTPS API URL，再重新部署。後端 CORS 必須允許實際前端 HTTPS origin，圖片也須 HTTPS。不要在部署設定使用 localhost 或本機 /api/dev：production stub 與 /dev/integration 都回 404。
+
+本機 build/start 驗證部署相容性，但不等於已部署。本專案未連結 `.vercel` project，未自動部署。平台配置依 [Vercel Next.js](https://vercel.com/docs/frameworks/full-stack/nextjs) 與 [environment variables](https://vercel.com/docs/environment-variables) 官方文件。
+
+## Mobile / Manual E2E Tests
+
+完整跨瀏覽器清單見 [MOBILE_TEST_CHECKLIST](docs/MOBILE_TEST_CHECKLIST.md)。本專案沒有既有 Playwright 套件或 e2e 設定；保留 Node 測試與 Codex 瀏覽器互動驗證，避免加入額外瀏覽器依賴。實機相機不能由這些測試代替。
+
+## Privacy
+
+Prototype 版本中的影像僅用於本次車況檢測流程；實際正式服務的保存與隱私政策需依營運規範訂定。
+
+前端不承諾後端的加密、保存期限或自動刪除。`resetInspection()` 只清除此次 sessionStorage key、context、影格/URL 與暫時掃描狀態，不操作其他瀏覽器資料，也不刪除已上傳的 backend 影像。
 
 ## GitHub
 

@@ -2,10 +2,12 @@ import { createUniqueId } from "./unique-id";
 import type { CapturedFrame, VehicleView } from "../types/frame";
 export const frameSamplingIntervalMs = 500;
 export const prototypeScanDurationMs = 24_000;
+export const CAMERA_FRAME_MAX_WIDTH = 1280;
+export const CAMERA_JPEG_QUALITY = 0.8;
 export function frameDimensions(
   width: number,
   height: number,
-  maximumEdge = 1280,
+  maximumEdge = CAMERA_FRAME_MAX_WIDTH,
 ) {
   if (width <= 0 || height <= 0 || !Number.isFinite(width + height))
     throw new Error("Video has no drawable frame");
@@ -73,7 +75,7 @@ export async function captureCameraFrame(
     /* Optional quality metadata must not block capture. */
   }
   const blob = await new Promise<Blob | null>((resolve) =>
-    canvas.toBlob(resolve, "image/jpeg", 0.8),
+    canvas.toBlob(resolve, "image/jpeg", CAMERA_JPEG_QUALITY),
   );
   if (!blob?.size) throw new Error("Empty camera frame");
   return {

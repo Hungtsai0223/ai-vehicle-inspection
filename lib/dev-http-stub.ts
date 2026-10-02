@@ -1,10 +1,20 @@
-import type {
-  InspectionResult,
-  ProcessingStage,
-  Vehicle,
-} from "../types/inspection";
+import type { ProcessingStage, Vehicle } from "../types/inspection";
 import { createUniqueId } from "./unique-id";
 import { stubResults } from "./dev-stub-options";
+export function handleStubHealth(request: Request) {
+  if (process.env.NODE_ENV !== "development")
+    return Response.json({ error: "Not found" }, { status: 404 });
+  const failure = new URL(request.url).searchParams.get("failure");
+  if (failure === "500" || failure === "503")
+    return Response.json(
+      { error: "Simulated service failure" },
+      { status: Number(failure), headers: { "Cache-Control": "no-store" } },
+    );
+  return Response.json(
+    { status: "ok", service: "ai-vehicle-inspection-dev-stub" },
+    { headers: { "Cache-Control": "no-store" } },
+  );
+}
 type StubResult = (typeof stubResults)[number];
 interface StubFrame {
   id: string;
@@ -77,7 +87,7 @@ function progress(session: StubSession) {
         : stages[Math.min(3, Math.floor(progress / 25))],
   };
 }
-function result(session: StubSession): InspectionResult {
+function result(session: StubSession) {
   const after = `/api/dev/api/v1/inspections/${encodeURIComponent(session.id)}/images/${encodeURIComponent(session.frames[Math.min(13, session.frames.length - 1)].id)}`;
   const noDamage = session.result === "no_damage";
   return {
@@ -97,8 +107,14 @@ function result(session: StubSession): InspectionResult {
       : [
           {
             id: "damage_001",
-            part: "left_front_door",
-            damageType: "scratch",
+            part:
+              session.result === "unknown_values"
+                ? "roof_panel_v2"
+                : "left_front_door",
+            damageType:
+              session.result === "unknown_values"
+                ? "unclassified_mark"
+                : "scratch",
             confidence: 0.91,
             isPotentialNewDamage: true,
             boundingBox: { x: 0.38, y: 0.42, width: 0.18, height: 0.13 },
@@ -109,6 +125,26 @@ function result(session: StubSession): InspectionResult {
                 : after,
             maskImageUrl: undefined,
           },
+          ...(session.result === "multiple_damage"
+            ? [
+                {
+                  id: "damage_002",
+                  part: "rear_bumper",
+                  damageType: "dent",
+                  confidence: 0.84,
+                  isPotentialNewDamage: false,
+                  afterImageUrl: after,
+                },
+                {
+                  id: "damage_003",
+                  part: "right_fender",
+                  damageType: "paint_damage",
+                  confidence: 0.54,
+                  isPotentialNewDamage: true,
+                  afterImageUrl: after,
+                },
+              ]
+            : []),
         ],
   };
 }
@@ -179,7 +215,12 @@ export async function handleStubRequest(request: Request, segments: string[]) {
     const files = form.getAll("frames");
     const metadataFields = form.getAll("metadata");
     const raw = metadataFields[0];
-    const metadata = typeof raw === "string" ? JSON.parse(raw || "null") : null;
+    let metadata;
+    try {
+      metadata = typeof raw === "string" ? JSON.parse(raw || "null") : null;
+    } catch {
+      return error(400, "Invalid metadata JSON");
+    }
     if (
       metadataFields.length !== 1 ||
       !Array.isArray(metadata?.frames) ||
@@ -192,7 +233,7 @@ export async function handleStubRequest(request: Request, segments: string[]) {
       files.some(
         (file) =>
           typeof file === "string" ||
-          !["image/jpeg", "image/png"].includes(file.type) ||
+          !["image/jpeg", "image/png", "image/webp"].includes(file.type) ||
           file.size < 4 ||
           file.size > 2 * 1024 * 1024,
       )
@@ -222,10 +263,13 @@ export async function handleStubRequest(request: Request, segments: string[]) {
       const valid =
         file.type === "image/jpeg"
           ? bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255
-          : bytes[0] === 137 &&
-            bytes[1] === 80 &&
-            bytes[2] === 78 &&
-            bytes[3] === 71;
+          : file.type === "image/webp"
+            ? String.fromCharCode(...bytes.slice(0, 4)) === "RIFF" &&
+              String.fromCharCode(...bytes.slice(8, 12)) === "WEBP"
+            : bytes[0] === 137 &&
+              bytes[1] === 80 &&
+              bytes[2] === 78 &&
+              bytes[3] === 71;
       if (!valid) return error(400, "Image bytes do not match MIME type");
       next.push({ ...metadata.frames[i], bytes, contentType: file.type });
     }

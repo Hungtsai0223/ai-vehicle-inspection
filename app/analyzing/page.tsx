@@ -38,31 +38,28 @@ export default function Analyzing() {
   useEffect(() => {
     if (!sessionReady || !inspectionId || !uploadComplete) return;
     const controller = new AbortController();
-    // A single loop per mount; cleanup cancels both the request and the next wait.
-    void inspectionService
-      .completeInspection(inspectionId)
-      .then(() =>
-        pollInspection(
-          inspectionService,
-          inspectionId,
-          (status) => {
-            setStatus(status.status);
-            setProcessingProgress(status.progress);
-            if (status.stage) setProcessingStage(status.stage);
-          },
-          {
-            signal: controller.signal,
-            intervalMs: mode === "MOCK" ? 200 : 1000,
-            timeoutMs: 60_000,
-            vehicle: {
-              id: vehicleId,
-              model: vehicleModel,
-              plate: vehiclePlate,
-            },
-            createdAt,
-          },
-        ),
-      )
+    // Upload preparation already starts analysis. Refresh and retry only read
+    // the existing inspection; never replay the complete POST after remount.
+    void pollInspection(
+      inspectionService,
+      inspectionId,
+      (status) => {
+        setStatus(status.status);
+        setProcessingProgress(status.progress);
+        if (status.stage) setProcessingStage(status.stage);
+      },
+      {
+        signal: controller.signal,
+        intervalMs: mode === "MOCK" ? 200 : 1000,
+        timeoutMs: 60_000,
+        vehicle: {
+          id: vehicleId,
+          model: vehicleModel,
+          plate: vehiclePlate,
+        },
+        createdAt,
+      },
+    )
       .then((result) => {
         if (controller.signal.aborted) return;
         setResult(result);

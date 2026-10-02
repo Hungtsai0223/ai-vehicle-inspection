@@ -12,6 +12,7 @@ try {
       "tests/inspection.test.ts",
       "tests/camera.test.ts",
       "tests/http-integration.test.ts",
+      "tests/hardening.test.ts",
       "--outDir",
       out,
       "--module",
@@ -35,6 +36,7 @@ try {
         path.join(out, "tests/inspection.test.js"),
         path.join(out, "tests/camera.test.js"),
         path.join(out, "tests/http-integration.test.js"),
+        path.join(out, "tests/hardening.test.js"),
       ],
       {
         cwd: root,

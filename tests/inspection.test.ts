@@ -196,7 +196,7 @@ test("API mode rejects mock metadata rather than uploading fabricated images", a
   });
   await assert.rejects(
     api.uploadInspectionFrames("id", frames),
-    errorCode("UPLOAD_FAILED"),
+    errorCode("INVALID_FRAMES"),
   );
   assert.equal(called, false);
 });
@@ -238,7 +238,7 @@ test("malformed responses cannot enter UI state", () => {
     { status: "processing" },
     { detectionStatus: "no_damage" },
     { keyFrameCount: 1.5 },
-    { missingAreas: ["roof"] },
+    { missingAreas: [42] },
     { inspectionId: "another" },
     { damages: [{ ...mockResult.damages[0], confidence: 91 }] },
     {

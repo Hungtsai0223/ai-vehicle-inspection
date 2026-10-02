@@ -1,4 +1,4 @@
-import type { DamageType, VehiclePart } from "@/types/inspection";
+import type { DamageType, VehiclePart } from "../types/inspection";
 export const partLabels: Record<VehiclePart, { zh: string; en: string }> = {
   front_bumper: { zh: "前保險桿", en: "Front Bumper" },
   rear_bumper: { zh: "後保險桿", en: "Rear Bumper" },
@@ -10,11 +10,18 @@ export const partLabels: Record<VehiclePart, { zh: string; en: string }> = {
   right_rear_door: { zh: "右後車門", en: "Right Rear Door" },
   left_fender: { zh: "左葉子板", en: "Left Fender" },
   right_fender: { zh: "右葉子板", en: "Right Fender" },
-  unknown: { zh: "未確認部位", en: "Unknown" },
+  unknown: { zh: "未知區域", en: "Unknown" },
   headlight: { zh: "頭燈", en: "Headlight" },
   taillight: { zh: "尾燈", en: "Taillight" },
   wheel: { zh: "車輪", en: "Wheel" },
 };
+export function confidenceLevel(confidence: number) {
+  return confidence >= 0.85
+    ? "高信心度"
+    : confidence >= 0.65
+      ? "中信心度"
+      : "低信心度";
+}
 export const damageLabels: Record<DamageType, { zh: string; en: string }> = {
   scratch: { zh: "疑似刮痕", en: "Scratch" },
   dent: { zh: "疑似凹陷", en: "Dent" },

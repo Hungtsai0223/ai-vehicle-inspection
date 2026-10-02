@@ -1,6 +1,10 @@
 import type { Ref } from "react";
 import type { DamageDetection } from "@/types/inspection";
-import { partLabels, damageLabels } from "@/lib/inspection-labels";
+import {
+  partLabels,
+  damageLabels,
+  confidenceLevel,
+} from "@/lib/inspection-labels";
 import { ImageComparison } from "./image-comparison";
 export function DamageCard({
   damage,
@@ -44,7 +48,8 @@ export function DamageCard({
           {type.zh} · {type.en}
         </span>
         <b>
-          {Math.round(damage.confidence * 100)}%<small> AI 信心度</small>
+          {Math.round(damage.confidence * 100)}%
+          <small> AI Confidence · {confidenceLevel(damage.confidence)}</small>
         </b>
       </div>
       <ImageComparison

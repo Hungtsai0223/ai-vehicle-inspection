@@ -7,8 +7,13 @@ import { HttpInspectionApi } from "@/services/http-inspection-api";
 import {
   createInspectionService,
   inspectionErrorMessage,
-  InspectionApiError,
 } from "@/services/inspection-service";
+import {
+  checkBackendHealth,
+  type BackendHealth,
+} from "@/services/backend-health";
+import { API_CONTRACT_VERSION, getApiBaseUrl } from "@/lib/api-config";
+import { BackendStatusIndicator } from "./backend-status-indicator";
 import { pollInspection } from "@/services/poll-inspection";
 import { createMockFrame } from "@/lib/mock-frames";
 import {
@@ -17,6 +22,7 @@ import {
 } from "@/lib/dev-demo-frames";
 import { releaseFramePreview } from "@/lib/frame-store";
 import { stubResults, stubFailures } from "@/lib/dev-stub-options";
+import type { CapturedFrame } from "@/types/frame";
 import type { InspectionResult } from "@/types/inspection";
 const subscribe = () => () => {};
 const cameraAvailable = () =>
@@ -27,7 +33,7 @@ export function IntegrationPanel() {
   const ctx = useInspection();
   const router = useRouter();
   const camera = useSyncExternalStore(subscribe, cameraAvailable, () => false);
-  const [reachable, setReachable] = useState("尚未測試");
+  const [health, setHealth] = useState<BackendHealth>("unknown");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [lastId, setLastId] = useState("");
@@ -38,26 +44,53 @@ export function IntegrationPanel() {
   const [failure, setFailure] = useState("none");
   const abort = useRef<AbortController | null>(null);
   useEffect(() => () => abort.current?.abort(), []);
-  const baseUrl = process.env.NEXT_PUBLIC_AI_API_URL ?? "http://localhost:8000";
+  const baseUrl = getApiBaseUrl();
   const stub = isDevelopmentStub(baseUrl);
-  function service(mode: string) {
+  function service(mode: string, selectedFailure = failure) {
     const url = new URL(baseUrl, window.location.origin);
     if (stub) {
       url.searchParams.set("result", mode);
-      url.searchParams.set("failure", failure);
+      url.searchParams.set("failure", selectedFailure);
     }
     return createInspectionService(new HttpInspectionApi(url.href), "API");
   }
+  async function testHealth() {
+    abort.current?.abort();
+    const controller = new AbortController();
+    abort.current = controller;
+    setBusy(true);
+    setMessage("");
+    const state = await checkBackendHealth(baseUrl, {
+      signal: controller.signal,
+    });
+    if (controller.signal.aborted) return;
+    setHealth(state);
+    setBusy(false);
+    setMessage(
+      state === "reachable"
+        ? "GET /health 成功，沒有建立 inspection。"
+        : state === "unknown"
+          ? "後端尚未提供有效的 health 回應。"
+          : "無法連線至後端，請確認 URL 與 CORS。",
+    );
+  }
   async function run(
     kind:
-      "connection" | "create" | "potential_damage" | "no_damage" | "selected",
+      | "create"
+      | "upload"
+      | "potential_damage"
+      | "no_damage"
+      | "selected"
+      | "503",
   ) {
     abort.current?.abort();
     const controller = new AbortController();
     abort.current = controller;
     setBusy(true);
     setMessage("");
-    let generated = [] as ReturnType<typeof createMockFrame>[];
+    setLastResult(null);
+    setLastUpload(0);
+    let generated: CapturedFrame[] = [];
     try {
       const api = service(
         kind === "selected"
@@ -65,22 +98,24 @@ export function IntegrationPanel() {
           : kind === "no_damage"
             ? "no_damage"
             : "potential_damage",
+        kind === "503" ? "503" : failure,
       );
       const session = await api.createInspection(
         { vehicle: ctx.vehicle },
         { signal: controller.signal },
       );
       if (controller.signal.aborted) return;
-      setReachable("reachable");
       setLastId(session.inspectionId);
       setLastStatus(session.status);
-      if (kind === "connection" || kind === "create") {
-        setMessage("HTTP create 成功；此測試會建立一筆空的開發檢查紀錄。");
+      if (kind === "create") {
+        setMessage(
+          "HTTP create 成功；建立了一筆空的檢查紀錄，未自動重試 POST。",
+        );
         return;
       }
       if (!stub) {
         setMessage(
-          "外部後端請使用真實相機流程。產生的 Demo JPEG 僅送至開發 HTTP stub。",
+          "外部後端請使用真實相機流程。Demo JPEG 僅送至開發 HTTP stub。",
         );
         return;
       }
@@ -92,12 +127,20 @@ export function IntegrationPanel() {
       const receipt = await api.uploadInspectionFrames(
         session.inspectionId,
         generated,
+        { signal: controller.signal },
       );
       if (controller.signal.aborted) return;
       setLastUpload(receipt.accepted);
+      setLastStatus("uploaded");
       generated.forEach(releaseFramePreview);
       generated = [];
-      await api.completeInspection(session.inspectionId);
+      if (kind === "upload") {
+        setMessage("16 張 JPEG multipart 上傳成功；本測試不啟動分析。");
+        return;
+      }
+      await api.completeInspection(session.inspectionId, {
+        signal: controller.signal,
+      });
       const result = await pollInspection(
         api,
         session.inspectionId,
@@ -112,21 +155,28 @@ export function IntegrationPanel() {
       setMessage(
         "HTTP create → JPEG multipart → complete → poll → result 成功。",
       );
-      ctx.acceptCompletedResult(result);
+      if (ctx.mode === "API") ctx.acceptCompletedResult(result);
     } catch (error) {
       if (!controller.signal.aborted) {
         setMessage(inspectionErrorMessage(error));
         setLastStatus("failed");
-        if (
-          error instanceof InspectionApiError &&
-          error.code === "NETWORK_ERROR"
-        )
-          setReachable("unavailable");
       }
     } finally {
       generated.forEach(releaseFramePreview);
-      if (!controller.signal.aborted) setBusy(false);
+      if (abort.current === controller && !controller.signal.aborted)
+        setBusy(false);
     }
+  }
+  function reset() {
+    abort.current?.abort();
+    ctx.resetInspection();
+    setBusy(false);
+    setMessage("本次 inspection session 與影格已清除。");
+    setLastId("");
+    setLastUpload(0);
+    setLastStatus("idle");
+    setLastResult(null);
+    setHealth("unknown");
   }
   return (
     <div className="page integration-page">
@@ -134,18 +184,26 @@ export function IntegrationPanel() {
       <p className="lead">
         僅開發環境使用。Stub 不執行 AI；測試影格是標記 DEMO 的實際 JPEG bytes。
       </p>
+      <BackendStatusIndicator mode={ctx.mode} health={health} />
       <dl className="summary-grid">
         {[
-          ["Frontend mode", ctx.mode === "API" ? "HTTP" : "MOCK"],
+          ["Frontend Mode", ctx.mode === "API" ? "HTTP" : "MOCK"],
           ["API URL", baseUrl],
-          ["Camera", camera ? "available" : "unavailable"],
-          ["Inspection service", reachable],
-          ["Last inspection ID", lastId || ctx.inspectionId || "—"],
+          ["Backend Health", health],
+          ["Camera Availability", camera ? "available" : "unavailable"],
           [
-            "Last upload",
+            "Environment",
+            `${process.env.NODE_ENV} · Contract ${API_CONTRACT_VERSION}`,
+          ],
+          ["Last Inspection ID", lastId || ctx.inspectionId || "—"],
+          [
+            "Last Upload Frame Count",
             `${lastUpload || (ctx.uploadComplete ? ctx.keyFrameCount : 0)} frames`,
           ],
-          ["Last backend status", lastStatus === "—" ? ctx.status : lastStatus],
+          [
+            "Current Inspection Status",
+            lastStatus === "—" ? ctx.status : lastStatus,
+          ],
         ].map(([label, value]) => (
           <div key={label}>
             <dt>{label}</dt>
@@ -153,21 +211,34 @@ export function IntegrationPanel() {
           </div>
         ))}
       </dl>
+      <small>
+        Camera Availability 僅檢查瀏覽器支援與
+        HTTPS，尚未請求權限或確認相機硬體。
+      </small>
       <div className="integration-actions">
+        <Button disabled={busy} onClick={() => void testHealth()}>
+          Test Health
+        </Button>
         <Button disabled={busy} onClick={() => void run("create")}>
           Test Create Inspection
         </Button>
-        <Button disabled={busy} onClick={() => void run("connection")}>
-          Test API Connection
-        </Button>
-        <Button disabled={busy || !stub} onClick={() => void run("no_damage")}>
-          Test No Damage
+        <Button disabled={busy || !stub} onClick={() => void run("upload")}>
+          Test Frame Upload
         </Button>
         <Button
           disabled={busy || !stub}
           onClick={() => void run("potential_damage")}
         >
           Test Potential Damage
+        </Button>
+        <Button disabled={busy || !stub} onClick={() => void run("no_damage")}>
+          Test No Damage
+        </Button>
+        <Button disabled={busy || !stub} onClick={() => void run("503")}>
+          Test 503 Error
+        </Button>
+        <Button className="secondary" onClick={reset}>
+          Reset Session
         </Button>
       </div>
       {stub && (
@@ -213,19 +284,25 @@ export function IntegrationPanel() {
           停止測試
         </Button>
       )}
-      {lastResult && (
+      <h2>Last Result</h2>
+      {lastResult || ctx.result ? (
         <>
-          <Action
-            href={
-              lastResult.detectionStatus === "potential_damage"
-                ? "/damage"
-                : "/result"
-            }
-          >
-            查看測試結果
-          </Action>
-          <pre>{JSON.stringify(lastResult, null, 2)}</pre>
+          {ctx.mode === "API" && (
+            <Action
+              href={
+                (lastResult ?? ctx.result)?.detectionStatus ===
+                "potential_damage"
+                  ? "/damage"
+                  : "/result"
+              }
+            >
+              查看測試結果
+            </Action>
+          )}
+          <pre>{JSON.stringify(lastResult ?? ctx.result, null, 2)}</pre>
         </>
+      ) : (
+        <p>—</p>
       )}
       <Button
         disabled={busy || !ctx.sessionReady}

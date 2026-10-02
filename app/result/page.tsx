@@ -15,6 +15,7 @@ import {
   Disclaimer,
   DemoLabel,
 } from "@/components/ui/primitives";
+import { useResultRecovery } from "@/components/inspection/use-result-recovery";
 export default function Result() {
   const {
     result,
@@ -30,6 +31,19 @@ export default function Result() {
   const [selected, setSelected] = useState<string>();
   const refs = useRef<Record<string, HTMLElement | null>>({});
   const reduced = useReducedMotion();
+  const recovery = useResultRecovery();
+  if (!result && (recovery.loading || recovery.error))
+    return (
+      <div className="page">
+        <h1>正在恢復檢查結果</h1>
+        <p role={recovery.error ? "alert" : "status"}>
+          {recovery.error || "正在重新取得分析結果…"}
+        </p>
+        {recovery.error && (
+          <Button onClick={recovery.retry}>重新取得結果</Button>
+        )}
+      </div>
+    );
   if (!result)
     return (
       <div className="page">

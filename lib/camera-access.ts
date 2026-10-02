@@ -6,7 +6,7 @@ export const cameraMessages: Record<CameraPermissionState, string> = {
   permission_denied: "無法存取相機。請開啟相機權限，或改用 Demo 模式。",
   camera_unavailable: "目前裝置沒有可使用的相機，或相機正被其他程式使用。",
   insecure_context: "瀏覽器僅允許在 HTTPS 或 localhost 使用相機功能。",
-  paused: "相機已暫停並關閉。請重新開始掃描，或改用 Demo 模式。",
+  paused: "相機已停止，請重新開啟相機。",
 };
 export class CameraAccessError extends Error {
   constructor(public readonly state: CameraPermissionState) {

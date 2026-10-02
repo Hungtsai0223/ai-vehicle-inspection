@@ -6,7 +6,11 @@ import { useInspection } from "@/components/inspection/inspection-context";
 import { VehicleDamageMap } from "@/components/vehicle/vehicle-damage-map";
 import { ImageComparison } from "@/components/inspection/image-comparison";
 import { RecaptureDialog } from "@/components/inspection/recapture-dialog";
-import { partLabels, damageLabels } from "@/lib/inspection-labels";
+import {
+  partLabels,
+  damageLabels,
+  confidenceLevel,
+} from "@/lib/inspection-labels";
 import {
   Action,
   Button,
@@ -14,6 +18,7 @@ import {
   Disclaimer,
   DemoLabel,
 } from "@/components/ui/primitives";
+import { useResultRecovery } from "@/components/inspection/use-result-recovery";
 export default function Damage() {
   const {
     result,
@@ -26,12 +31,26 @@ export default function Damage() {
     setStatus,
   } = useInspection();
   const router = useRouter();
+  const [selectedId, setSelectedId] = useState("");
   const [capturing, setCapturing] = useState(false);
   const finishCapture = useCallback(() => {
     setRecaptured(true);
     setStatus("completed");
     router.replace("/result");
   }, [setRecaptured, setStatus, router]);
+  const recovery = useResultRecovery();
+  if (!result && (recovery.loading || recovery.error))
+    return (
+      <div className="page">
+        <h1>正在恢復檢查結果</h1>
+        <p role={recovery.error ? "alert" : "status"}>
+          {recovery.error || "正在重新取得分析結果…"}
+        </p>
+        {recovery.error && (
+          <Button onClick={recovery.retry}>重新取得結果</Button>
+        )}
+      </div>
+    );
   if (!result)
     return (
       <div className="page">
@@ -41,7 +60,8 @@ export default function Damage() {
         </Action>
       </div>
     );
-  const damage = result.damages[0];
+  const damage =
+    result.damages.find((item) => item.id === selectedId) ?? result.damages[0];
   if (!damage)
     return (
       <div className="page">
@@ -61,9 +81,32 @@ export default function Damage() {
         AI 偵測到{part.zh}存在{type.zh}，請協助確認
       </p>
       <div className="damage-badges">
-        <span className="alert-label">Potential New Damage</span>
+        <span className="alert-label">
+          {damage.isPotentialNewDamage
+            ? "Potential New Damage"
+            : "Potential Damage"}
+        </span>
         {(mode === "MOCK" || usingDevStub) && <DemoLabel />}
       </div>
+      {result.damages.length > 1 && (
+        <div
+          className="damage-detection-selector"
+          role="group"
+          aria-label="切換疑似異常"
+        >
+          {result.damages.map((item, index) => (
+            <button
+              key={item.id}
+              type="button"
+              aria-pressed={item.id === damage.id}
+              onClick={() => setSelectedId(item.id)}
+            >
+              {index + 1}. {partLabels[item.part].zh} ·{" "}
+              {damageLabels[item.damageType].zh}
+            </button>
+          ))}
+        </div>
+      )}
       <VehicleDamageMap
         vehicleParts={[damage.part]}
         damageLocations={[damage]}
@@ -87,7 +130,12 @@ export default function Damage() {
           </div>
           <div>
             <dt>AI 信心度</dt>
-            <dd className="red">{Math.round(damage.confidence * 100)}%</dd>
+            <dd className="red">
+              {Math.round(damage.confidence * 100)}%
+              <small>
+                AI Confidence · {confidenceLevel(damage.confidence)}
+              </small>
+            </dd>
           </div>
         </dl>
       </Card>
