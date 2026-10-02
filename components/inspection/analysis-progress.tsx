@@ -1,20 +1,37 @@
 import { Check, LoaderCircle } from "lucide-react";
-import { mockConfig } from "@/lib/mock-data";
 const steps = [
-  { label: "影像品質確認", completedAt: 500 },
-  { label: "車體區域辨識", completedAt: 1000 },
-  { label: "關鍵影格擷取", completedAt: 1500 },
-  { label: "車損辨識", completedAt: 2000 },
-  { label: "租車前後影像比對", completedAt: 3000 },
+  "影像品質確認",
+  "關鍵影格上傳",
+  "車體區域辨識",
+  "車損辨識",
+  "前後影像比對",
 ];
-export function AnalysisProgress({ progress }: { progress: number }) {
-  const elapsed = (progress / 100) * mockConfig.analysisDurationMs;
+export function AnalysisProgress({
+  progress,
+  stage,
+  failed = false,
+}: {
+  progress: number;
+  stage: "uploading" | "processing" | "completed";
+  failed?: boolean;
+}) {
+  // Upload is an actual service operation. Backend progress is coarse: the remaining
+  // labels are illustrative phases, not assertions that a particular CV model ran.
+  const completedCount =
+    stage === "completed"
+      ? 5
+      : stage === "uploading"
+        ? 1
+        : progress >= 90
+          ? 4
+          : progress >= 60
+            ? 3
+            : 2;
   return (
     <ol className="analysis-steps">
-      {steps.map(({ label, completedAt }, i) => {
-        const done = elapsed >= completedAt;
-        const active =
-          !done && (i === 0 || elapsed >= steps[i - 1].completedAt);
+      {steps.map((label, i) => {
+        const done = i < completedCount;
+        const active = i === completedCount && !failed;
         return (
           <li
             key={label}
@@ -28,13 +45,15 @@ export function AnalysisProgress({ progress }: { progress: number }) {
               <span className="step-dot" />
             )}
             <span>{label}</span>
-            {done ? (
-              <small>完成</small>
-            ) : active ? (
-              <small>處理中</small>
-            ) : (
-              <small>待處理</small>
-            )}
+            <small>
+              {done
+                ? "完成"
+                : active
+                  ? "處理中"
+                  : failed && i === completedCount
+                    ? "待重試"
+                    : "待處理"}
+            </small>
           </li>
         );
       })}

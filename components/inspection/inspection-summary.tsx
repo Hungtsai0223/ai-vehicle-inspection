@@ -1,7 +1,7 @@
 import type { InspectionResult } from "@/types/inspection";
 export function InspectionSummary({ result }: { result: InspectionResult }) {
   const values = [
-    ["掃描時間", `${result.scanDuration} sec`],
+    ["掃描時間", `${result.scanDurationSeconds} sec`],
     ["有效影格", `${result.keyFrameCount} frames`],
     ["掃描覆蓋率", `${Math.round(result.coverage * 100)}%`],
     ["疑似異常", `${result.damages.length}`],

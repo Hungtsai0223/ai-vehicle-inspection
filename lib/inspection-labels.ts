@@ -8,7 +8,9 @@ export const partLabels: Record<VehiclePart, { zh: string; en: string }> = {
   left_rear_door: { zh: "左後車門", en: "Left Rear Door" },
   right_front_door: { zh: "右前車門", en: "Right Front Door" },
   right_rear_door: { zh: "右後車門", en: "Right Rear Door" },
-  fender: { zh: "葉子板", en: "Fender" },
+  left_fender: { zh: "左葉子板", en: "Left Fender" },
+  right_fender: { zh: "右葉子板", en: "Right Fender" },
+  unknown: { zh: "未確認部位", en: "Unknown" },
   headlight: { zh: "頭燈", en: "Headlight" },
   taillight: { zh: "尾燈", en: "Taillight" },
   wheel: { zh: "車輪", en: "Wheel" },
@@ -18,4 +20,5 @@ export const damageLabels: Record<DamageType, { zh: string; en: string }> = {
   dent: { zh: "疑似凹陷", en: "Dent" },
   paint_damage: { zh: "疑似漆面損傷", en: "Paint Damage" },
   contamination: { zh: "疑似髒污", en: "Contamination" },
+  unknown: { zh: "疑似異常", en: "Unknown" },
 };

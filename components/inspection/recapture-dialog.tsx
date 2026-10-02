@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { Camera, CheckCircle } from "lucide-react";
+import { partLabels } from "@/lib/inspection-labels";
 import { mockConfig } from "@/lib/mock-data";
 import type { DamageDetection } from "@/types/inspection";
 import { VehicleDamageMap } from "@/components/vehicle/vehicle-damage-map";
@@ -47,7 +48,9 @@ export function RecaptureDialog({
       <div className={captured ? "capture-success" : "capture-icon"}>
         {captured ? <CheckCircle size={32} /> : <Camera size={32} />}
       </div>
-      <h2 id="recapture-title">{captured ? "補拍完成" : "請對準左前車門"}</h2>
+      <h2 id="recapture-title">
+        {captured ? "補拍完成" : `請對準${partLabels[damage.part].zh}`}
+      </h2>
       <VehicleDamageMap
         vehicleParts={[damage.part]}
         damageLocations={[damage]}

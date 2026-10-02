@@ -5,14 +5,16 @@ import { ImageComparison } from "./image-comparison";
 export function DamageCard({
   damage,
   selected = false,
+  isDemo = true,
   ref,
 }: {
   damage: DamageDetection;
   selected?: boolean;
+  isDemo?: boolean;
   ref?: Ref<HTMLElement>;
 }) {
   const part = partLabels[damage.part];
-  const type = damageLabels[damage.type];
+  const type = damageLabels[damage.damageType];
   return (
     <section
       ref={ref}
@@ -21,10 +23,18 @@ export function DamageCard({
       className={`card damage-card ${selected ? "selected-damage" : ""}`}
     >
       <div className="row">
-        <h3>Potential New Damage</h3>
+        <h3>
+          {damage.isPotentialNewDamage
+            ? "Potential New Damage"
+            : "Potential Damage"}
+        </h3>
         <span className="alert-label">待人工確認</span>
       </div>
-      <p>疑似新增車損</p>
+      <p>
+        {damage.isPotentialNewDamage
+          ? "疑似新增車損"
+          : "疑似車損，新增狀態待確認"}
+      </p>
       <div className="damage-meta">
         <strong>
           {part.zh}
@@ -38,10 +48,11 @@ export function DamageCard({
         </b>
       </div>
       <ImageComparison
-        beforeImage={damage.beforeImage}
-        afterImage={damage.afterImage}
-        maskImage={damage.maskImage}
+        beforeImage={damage.beforeImageUrl}
+        afterImage={damage.afterImageUrl}
+        maskImage={damage.maskImageUrl}
         location={part.zh}
+        isDemo={isDemo}
       />
     </section>
   );

@@ -4,44 +4,20 @@ import {
   ArrowRight,
   AlertTriangle,
   Car,
-  Camera,
   MoveHorizontal,
   Gauge,
   SunMoon,
   Focus,
 } from "lucide-react";
-import { VehicleIllustration } from "@/components/vehicle/vehicle-illustration";
+import {
+  CameraPreview,
+  type CameraPreviewProps,
+} from "@/components/camera/CameraPreview";
+export {
+  MockCameraPreview,
+  BoundingBox,
+} from "@/components/camera/mock-camera-preview";
 import type { ScanState } from "@/types/inspection";
-export interface CameraPreviewProps {
-  state: ScanState;
-}
-// TODO: RealCameraPreview implements CameraPreviewProps with getUserMedia.
-// Handle permission denial, HTTPS, rear camera and stop all tracks on unmount.
-export function MockCameraPreview({ state }: CameraPreviewProps) {
-  return (
-    <div
-      className={`camera-preview ${state === "blurry" ? "blurred" : ""} ${state === "too_dark" ? "dim" : ""}`}
-    >
-      <div className="camera-grid" />
-      <span className="camera-label">
-        <Camera size={14} />
-        模擬攝影機 · 不存取鏡頭
-      </span>
-      <VehicleIllustration dark />
-      <BoundingBox good={state === "good"} />
-    </div>
-  );
-}
-export function BoundingBox({ good }: { good: boolean }) {
-  return (
-    <div aria-hidden="true" className={`bounding-box ${good ? "valid" : ""}`}>
-      <i />
-      <i />
-      <i />
-      <i />
-    </div>
-  );
-}
 export const validationMessages: Record<ScanState, string> = {
   good: "拍攝狀態良好",
   too_close: "距離太近，請稍微後退",
@@ -82,12 +58,11 @@ export function scanDirection(progress: number) {
           : "即將完成掃描";
 }
 export function ScanOverlay({
-  state,
+  state = "good",
   progress,
-}: {
-  state: ScanState;
-  progress: number;
-}) {
+  scanActive,
+  onFrameCapture,
+}: CameraPreviewProps & { progress: number }) {
   const distanceGood = state !== "too_close" && state !== "too_far";
   const clarityGood =
     state !== "blurry" && state !== "too_dark" && state !== "too_fast";
@@ -98,7 +73,11 @@ export function ScanOverlay({
   ];
   return (
     <div className="scan-overlay">
-      <MockCameraPreview state={state} />
+      <CameraPreview
+        state={state}
+        scanActive={scanActive}
+        onFrameCapture={onFrameCapture}
+      />
       <div className="camera-instructions">
         <div className="direction" role="status">
           <ArrowRight size={22} />

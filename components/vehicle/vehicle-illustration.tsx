@@ -69,14 +69,4 @@ export function VehicleIllustration({
     </svg>
   );
 }
-export function VehicleCard() {
-  return (
-    <div className="vehicle-card">
-      <div>
-        <strong>Toyota Yaris Cross</strong>
-        <p>RAC-2026</p>
-      </div>
-      <span className="plate">共享汽車</span>
-    </div>
-  );
-}
+export { VehicleCard } from "./vehicle-card";

@@ -1,22 +1,32 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useInspection } from "@/components/inspection/inspection-context";
-import { inspectionApi } from "@/lib/api";
+import { inspectionErrorMessage } from "@/services/inspection-service";
 import { mockConfig } from "@/lib/mock-data";
-import type { KeyFrame } from "@/types/inspection";
+import { createMockFrame } from "@/lib/mock-frames";
+import type { CapturedFrame } from "@/types/frame";
 export function useDemoScan() {
-  const { begin, setProgress: setSharedProgress, setStatus } = useInspection();
+  const {
+    begin,
+    setProgress: setSharedProgress,
+    setStatus,
+    setFrames,
+  } = useInspection();
   const router = useRouter();
   const [progress, setProgress] = useState(0);
   const [phase, setPhase] = useState<"idle" | "scanning" | "complete">("idle");
   const [error, setError] = useState("");
   const active = useRef(false);
   const mounted = useRef(true);
+  const buffer = useRef<CapturedFrame[]>([]);
   const interval = useRef<ReturnType<typeof setInterval> | undefined>(
     undefined,
   );
   const timeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const onFrameCapture = useCallback((frame: CapturedFrame) => {
+    buffer.current.push(frame);
+  }, []);
   useEffect(() => {
     mounted.current = true;
     return () => {
@@ -28,17 +38,12 @@ export function useDemoScan() {
   async function start() {
     if (active.current) return;
     active.current = true;
+    buffer.current = [];
     setError("");
     setProgress(0);
     setPhase("scanning");
-    const fail = (e: unknown) => {
-      if (!mounted.current) return;
-      setError(e instanceof Error ? e.message : "無法完成掃描，請重試。");
-      setPhase("idle");
-      active.current = false;
-    };
     try {
-      const id = await begin();
+      await begin();
       if (!mounted.current) return;
       const started = performance.now();
       interval.current = setInterval(() => {
@@ -51,28 +56,35 @@ export function useDemoScan() {
         if (value < 100) return;
         clearInterval(interval.current);
         setPhase("complete");
-        // TODO: replace these explicit mock Blobs with camera-extracted JPEGs.
-        const frames: KeyFrame[] = Array.from({ length: 16 }, (_, i) => ({
-          id: `mock_${i}`,
-          image: new Blob(["mock-frame"], { type: "text/plain" }),
-          angle: i * 22.5,
-          timestamp: i * (mockConfig.scanDurationMs / 16),
-        }));
-        // Give the completed state 800 ms of screen time before navigation.
+        // Guarantee 16 mock metadata frames even when background-tab timers are throttled.
+        // A future real camera must never fill missing captures with fabricated frames.
+        const frames = Array.from(
+          { length: 16 },
+          (_, i) =>
+            buffer.current.find((frame) => frame.id === `mock_frame_${i}`) ??
+            createMockFrame(i, i * 500),
+        );
+        setFrames(frames);
         timeout.current = setTimeout(() => {
-          void inspectionApi
-            .uploadKeyFrames(id, frames)
-            .then(() => {
-              if (!mounted.current) return;
-              setStatus("analyzing");
-              router.push("/analyzing");
-            })
-            .catch(fail);
+          if (!mounted.current) return;
+          setStatus("uploading");
+          router.push("/analyzing");
         }, mockConfig.scanCompleteDelayMs);
       }, 80);
-    } catch (e) {
-      fail(e);
+    } catch (error) {
+      if (!mounted.current) return;
+      setError(inspectionErrorMessage(error));
+      setStatus("failed");
+      setPhase("idle");
+      active.current = false;
     }
   }
-  return { progress, phase, error, start, running: phase !== "idle" };
+  return {
+    progress,
+    phase,
+    error,
+    start,
+    onFrameCapture,
+    running: phase !== "idle",
+  };
 }

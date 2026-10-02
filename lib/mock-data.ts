@@ -1,11 +1,15 @@
-import type { InspectionResult, Scenario } from "@/types/inspection";
+import type { InspectionResult, Scenario } from "../types/inspection";
 // MOCK / DEMO DATA — not measured experiment results.
-export const mockVehicle = { name: "Toyota Yaris Cross", plate: "RAC-2026" };
+export const mockVehicle = {
+  id: "vehicle_001",
+  model: "Toyota Yaris Cross",
+  plate: "RAC-2026",
+};
 export const mockConfig = {
   defaultScenario: "potential_damage" as Scenario,
   scanDurationMs: 8_000,
   scanCompleteDelayMs: 800,
-  analysisDurationMs: 4_000,
+  analysisDurationMs: 3_000,
   recaptureTargetMs: 600,
   recaptureCompleteMs: 1_000,
   analysisFrameCount: 18,
@@ -13,21 +17,25 @@ export const mockConfig = {
 };
 export const mockResult: InspectionResult = {
   inspectionId: "demo_2026",
-  vehicleId: "RAC-2026",
+  vehicle: mockVehicle,
+  status: "completed",
+  detectionStatus: "potential_damage",
+  missingAreas: [],
+  createdAt: "2026-10-02T00:00:00.000Z",
   coverage: 0.96,
-  scanDuration: 27.4,
-  processingTime: 2.84,
+  scanDurationSeconds: 27.4,
+  processingTimeSeconds: 2.84,
   keyFrameCount: 16,
   damages: [
     {
       id: "damage_001",
       part: "left_front_door",
-      type: "scratch",
+      damageType: "scratch",
       confidence: 0.91,
       isPotentialNewDamage: true,
-      beforeImage: "/mock/before.svg",
-      afterImage: "/mock/after.svg",
-      maskImage: "/mock/mask.svg",
+      beforeImageUrl: "/mock/before.svg",
+      afterImageUrl: "/mock/after.svg",
+      maskImageUrl: "/mock/mask.svg",
     },
   ],
 };
@@ -39,6 +47,9 @@ export function resultFor(
     ...mockResult,
     inspectionId: id,
     coverage: scenario === "incomplete" ? 0.75 : 0.96,
+    detectionStatus:
+      scenario === "no_damage" ? "no_damage" : "potential_damage",
+    missingAreas: scenario === "incomplete" ? ["right_rear_door"] : [],
     damages: scenario === "no_damage" ? [] : mockResult.damages,
   };
 }

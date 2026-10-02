@@ -72,7 +72,7 @@ export default function Dashboard() {
       <ExperimentTable />
       <div className="dashboard-bottom">
         <p>
-          Frontend → Inspection API → AI Damage Detection Model
+          Frontend → Inspection Service → API Adapter → AI Backend
           <br />
           <small>目前僅有前端與模擬 API，實際模型由團隊後續串接。</small>
         </p>

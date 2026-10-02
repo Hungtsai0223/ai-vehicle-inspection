@@ -25,7 +25,7 @@ export function VehicleDamageMap({
           <button
             type="button"
             className="damage-marker"
-            aria-label={`查看${partLabels[marked.part].zh}疑似新增車損`}
+            aria-label={`查看${partLabels[marked.part].zh}${marked.isPotentialNewDamage ? "疑似新增車損" : "疑似車損"}`}
             aria-pressed={selectedDamage === marked.id}
             onClick={() => onSelectDamage(marked.id)}
           >
@@ -35,7 +35,7 @@ export function VehicleDamageMap({
       </div>
       <figcaption>
         {relevant.length
-          ? `${partLabels[relevant[0].part].zh} · 疑似新增車損`
+          ? `${partLabels[relevant[0].part].zh} · ${relevant[0].isPotentialNewDamage ? "疑似新增車損" : "疑似車損"}`
           : "車輛外觀檢查示意"}
       </figcaption>
     </figure>

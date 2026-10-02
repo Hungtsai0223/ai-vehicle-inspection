@@ -6,6 +6,7 @@ import { useInspection } from "@/components/inspection/inspection-context";
 import { VehicleCard } from "@/components/vehicle/vehicle-illustration";
 import { VehicleDamageMap } from "@/components/vehicle/vehicle-damage-map";
 import { InspectionSummary } from "@/components/inspection/inspection-summary";
+import { partLabels } from "@/lib/inspection-labels";
 import { DamageCard } from "@/components/inspection/damage-card";
 import {
   Action,
@@ -15,7 +16,7 @@ import {
   DemoLabel,
 } from "@/components/ui/primitives";
 export default function Result() {
-  const { result, recaptured } = useInspection();
+  const { result, recaptured, mode } = useInspection();
   const [finished, setFinished] = useState(false);
   const [selected, setSelected] = useState<string>();
   const refs = useRef<Record<string, HTMLElement | null>>({});
@@ -49,7 +50,7 @@ export default function Result() {
           </p>
         </div>
       </div>
-      <DemoLabel />
+      {mode === "MOCK" && <DemoLabel />}
       <VehicleCard />
       <VehicleDamageMap
         vehicleParts={result.damages.map((d) => d.part)}
@@ -61,25 +62,33 @@ export default function Result() {
         <h2>檢查摘要</h2>
         <InspectionSummary result={result} />
       </Card>
-      {result.coverage < 0.9 && (
+      {Boolean(result.missingAreas?.length) && (
         <p className="notice">
-          右側車身未完整掃描 · Unknown。已記錄覆蓋不足，仍可完成還車。
+          部分區域未完整掃描 · Unknown
+          <small>
+            {result.missingAreas?.map((part) => partLabels[part].zh).join("、")}
+            。這些區域尚無法判定車況，仍可完成還車並交由人工確認。
+          </small>
         </p>
       )}
       {result.damages.map((d) => (
         <DamageCard
           key={d.id}
           damage={d}
+          isDemo={mode === "MOCK"}
           selected={selected === d.id}
           ref={(el) => {
             refs.current[d.id] = el;
           }}
         />
       ))}
-      {!result.damages.length && (
+      {result.detectionStatus === "no_damage" && (
         <Card className="clear-result">
           <CheckCircle size={24} />
-          <strong>本次未發現疑似異常</strong>
+          <strong>未偵測到明顯新增車損</strong>
+          {Boolean(result.missingAreas?.length) && (
+            <small>此結論僅適用於已完整掃描的區域。</small>
+          )}
         </Card>
       )}
       {recaptured && (

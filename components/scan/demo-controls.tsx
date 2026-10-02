@@ -42,19 +42,21 @@ export function DemoControls({
           </button>
         ))}
       </div>
-      <label>
-        辨識結果
-        <select
-          aria-label="辨識結果"
-          value={scenario}
-          disabled={disabled}
-          onChange={(e) => onScenarioChange(e.target.value as Scenario)}
-        >
-          <option value="potential_damage">Potential Damage</option>
-          <option value="no_damage">No Damage · 無異常</option>
-          <option value="incomplete">覆蓋不足 · Unknown</option>
-        </select>
-      </label>
+      {process.env.NODE_ENV === "development" && (
+        <label>
+          AI Result
+          <select
+            aria-label="辨識結果"
+            value={scenario}
+            disabled={disabled}
+            onChange={(e) => onScenarioChange(e.target.value as Scenario)}
+          >
+            <option value="potential_damage">Potential Damage</option>
+            <option value="no_damage">No Damage · 無異常</option>
+            <option value="incomplete">覆蓋不足 · Unknown</option>
+          </select>
+        </label>
+      )}
       <label className="checkbox">
         <input
           type="checkbox"

@@ -1,18 +1,19 @@
 "use client";
 import {
   createContext,
+  useCallback,
   useContext,
   useState,
-  useCallback,
   type ReactNode,
 } from "react";
 import type {
   InspectionResult,
-  Scenario,
   InspectionStatus,
+  Scenario,
 } from "@/types/inspection";
-import { mockConfig } from "@/lib/mock-data";
-import { inspectionApi } from "@/lib/api";
+import type { CapturedFrame } from "@/types/frame";
+import { inspectionService } from "@/services/inspection-service";
+import { mockConfig, mockVehicle } from "@/lib/mock-data";
 const Context = createContext<ReturnType<typeof useInspectionState> | null>(
   null,
 );
@@ -22,14 +23,20 @@ function useInspectionState() {
   );
   const [inspectionId, setId] = useState("");
   const [progress, setProgress] = useState(0);
-  const [status, setStatus] = useState<InspectionStatus["status"]>("scanning");
+  const [status, setStatus] = useState<InspectionStatus>("idle");
+  const [frames, setFrames] = useState<CapturedFrame[]>([]);
   const [result, setResult] = useState<InspectionResult | null>(null);
   const [recaptured, setRecaptured] = useState(false);
   const [poorNetwork, setPoorNetwork] = useState(false);
+  const vehicle = result?.vehicle ?? mockVehicle;
   const begin = useCallback(async () => {
-    const { inspectionId: id } = await inspectionApi.startInspection(scenario);
+    const { inspectionId: id } = await inspectionService.createInspection({
+      vehicle: mockVehicle,
+      scenario,
+    });
     setId(id);
     setProgress(0);
+    setFrames([]);
     setResult(null);
     setRecaptured(false);
     setStatus("scanning");
@@ -43,6 +50,8 @@ function useInspectionState() {
     setProgress,
     status,
     setStatus,
+    frames,
+    setFrames,
     result,
     setResult,
     recaptured,
@@ -50,6 +59,8 @@ function useInspectionState() {
     poorNetwork,
     setPoorNetwork,
     begin,
+    vehicle,
+    mode: inspectionService.mode,
     coverage: result?.coverage ?? progress / 100,
     detections: result?.damages ?? [],
   };

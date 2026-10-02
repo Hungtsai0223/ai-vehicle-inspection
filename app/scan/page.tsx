@@ -10,7 +10,6 @@ import {
 import { DemoControls } from "@/components/scan/demo-controls";
 import { useDemoScan } from "@/components/scan/use-demo-scan";
 import { useInspection } from "@/components/inspection/inspection-context";
-import { mockVehicle } from "@/lib/mock-data";
 import type { ScanState } from "@/types/inspection";
 export default function Scan() {
   const ctx = useInspection();
@@ -18,8 +17,13 @@ export default function Scan() {
   const scan = useDemoScan();
   return (
     <div className="scan-page">
-      <p className="scan-vehicle-name">{mockVehicle.name}</p>
-      <ScanOverlay state={validation} progress={scan.progress} />
+      <p className="scan-vehicle-name">{ctx.vehicle.model}</p>
+      <ScanOverlay
+        state={validation}
+        progress={scan.progress}
+        scanActive={scan.phase === "scanning" && ctx.status === "scanning"}
+        onFrameCapture={scan.onFrameCapture}
+      />
       <div className="scan-bottom">
         {scan.phase === "complete" && (
           <p className="scan-complete" role="status">

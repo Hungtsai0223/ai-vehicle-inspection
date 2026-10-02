@@ -1,6 +1,7 @@
 "use client";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
+import { ApiDebugPanel } from "@/components/dev/ApiDebugPanel";
 import { AppHeader } from "./app-header";
 export function MobileAppShell({ children }: { children: ReactNode }) {
   const path = usePathname();
@@ -14,6 +15,7 @@ export function MobileAppShell({ children }: { children: ReactNode }) {
       <main key={path} className={animate ? "page-fade" : ""}>
         {children}
       </main>
+      {process.env.NODE_ENV === "development" && <ApiDebugPanel />}
       {!camera && (
         <footer>
           AI Vehicle Inspection <span>2026 Hackathon · Frontend Demo</span>

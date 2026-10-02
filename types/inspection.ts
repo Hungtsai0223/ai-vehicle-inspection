@@ -1,4 +1,8 @@
-export type DamageType = "scratch" | "dent" | "paint_damage" | "contamination";
+export type InspectionStatus =
+  "idle" | "scanning" | "uploading" | "processing" | "completed" | "failed";
+export type DetectionStatus = "no_damage" | "potential_damage";
+export type DamageType =
+  "scratch" | "dent" | "paint_damage" | "contamination" | "unknown";
 export type VehiclePart =
   | "front_bumper"
   | "rear_bumper"
@@ -8,48 +12,49 @@ export type VehiclePart =
   | "left_rear_door"
   | "right_front_door"
   | "right_rear_door"
-  | "fender"
+  | "left_fender"
+  | "right_fender"
   | "headlight"
   | "taillight"
-  | "wheel";
+  | "wheel"
+  | "unknown";
 export type ScanState =
   "good" | "too_close" | "too_far" | "blurry" | "too_fast" | "too_dark";
 export type Scenario = "potential_damage" | "no_damage" | "incomplete";
+export interface Vehicle {
+  id: string;
+  model: string;
+  plate: string;
+}
 export interface DamageDetection {
   id: string;
   part: VehiclePart;
-  type: DamageType;
+  damageType: DamageType;
   confidence: number;
   isPotentialNewDamage: boolean;
-  beforeImage?: string;
-  afterImage?: string;
-  maskImage?: string;
+  /** Normalized image coordinates, each in 0–1. */
+  boundingBox?: { x: number; y: number; width: number; height: number };
+  beforeImageUrl?: string;
+  afterImageUrl?: string;
+  maskImageUrl?: string;
 }
 export interface InspectionResult {
   inspectionId: string;
-  vehicleId: string;
+  vehicle: Vehicle;
+  status: InspectionStatus;
+  detectionStatus: DetectionStatus;
   coverage: number;
-  scanDuration: number;
-  processingTime: number;
+  scanDurationSeconds: number;
+  processingTimeSeconds: number;
   keyFrameCount: number;
+  /** Unknown coverage is separate from detection in inspected areas. */
+  missingAreas?: VehiclePart[];
   damages: DamageDetection[];
+  createdAt: string;
 }
-export interface InspectionStatus {
-  status: "scanning" | "analyzing" | "potential_damage" | "complete";
+export interface InspectionProgress {
+  inspectionId: string;
+  status: InspectionStatus;
+  /** Percentage, 0–100. */
   progress: number;
-}
-export interface KeyFrame {
-  id: string;
-  image: Blob;
-  angle: number;
-  timestamp: number;
-}
-export interface InspectionApi {
-  startInspection(scenario?: Scenario): Promise<{ inspectionId: string }>;
-  uploadKeyFrames(
-    id: string,
-    frames: KeyFrame[],
-  ): Promise<{ accepted: number }>;
-  getInspectionStatus(id: string): Promise<InspectionStatus>;
-  getInspectionResult(id: string): Promise<InspectionResult>;
 }

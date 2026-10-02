@@ -1480,3 +1480,52 @@ footer span {
     animation: none;
   }
 }
+
+.api-debug-panel {
+  position: fixed;
+  top: 76px;
+  right: max(12px, calc((100vw - 520px) / 2));
+  z-index: 45;
+  max-width: min(380px, calc(100vw - 24px));
+  font-size: 12px;
+  color: #263644;
+  border: 1px solid #d6dce3;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 4px 18px #00000012;
+}
+.api-debug-panel summary {
+  cursor: pointer;
+  padding: 8px 12px;
+}
+.api-debug-panel details[open] {
+  padding: 0 12px 12px;
+  max-height: 65vh;
+  overflow: auto;
+}
+.api-debug-panel details[open] summary {
+  padding-inline: 0;
+}
+.api-debug-panel dl {
+  margin: 4px 0 12px;
+}
+.api-debug-panel dl div {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  gap: 8px;
+}
+.api-debug-panel dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.api-debug-panel pre {
+  max-height: 220px;
+  overflow: auto;
+  background: #f5f7fa;
+  padding: 8px;
+  font-size: 10px;
+}
+.api-debug-panel small {
+  display: block;
+  max-width: 330px;
+}

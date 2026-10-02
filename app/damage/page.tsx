@@ -14,12 +14,12 @@ import {
   DemoLabel,
 } from "@/components/ui/primitives";
 export default function Damage() {
-  const { result, setRecaptured, setStatus } = useInspection();
+  const { result, mode, setRecaptured, setStatus } = useInspection();
   const router = useRouter();
   const [capturing, setCapturing] = useState(false);
   const finishCapture = useCallback(() => {
     setRecaptured(true);
-    setStatus("complete");
+    setStatus("completed");
     router.replace("/result");
   }, [setRecaptured, setStatus, router]);
   if (!result)
@@ -38,17 +38,19 @@ export default function Damage() {
       </div>
     );
   const part = partLabels[damage.part];
-  const type = damageLabels[damage.type];
+  const type = damageLabels[damage.damageType];
   return (
     <div className="page damage-page">
       <div className="warning-icon">
         <AlertCircle size={30} />
       </div>
       <h1>發現疑似異常</h1>
-      <p className="lead">AI 偵測到{part.zh}可能存在新增刮痕</p>
+      <p className="lead">
+        AI 偵測到{part.zh}存在{type.zh}，請協助確認
+      </p>
       <div className="damage-badges">
         <span className="alert-label">Potential New Damage</span>
-        <DemoLabel />
+        {mode === "MOCK" && <DemoLabel />}
       </div>
       <VehicleDamageMap
         vehicleParts={[damage.part]}
@@ -93,7 +95,7 @@ export default function Damage() {
           <br />
           Confidence: {damage.confidence}
           <br />
-          模型：Mock API（未連接 AI 模型）
+          來源：{mode === "MOCK" ? "Mock API（未連接 AI 模型）" : "AI 分析服務"}
           <br />
           結果須由人工確認。
         </p>

@@ -5,51 +5,89 @@ import { motion, useReducedMotion } from "framer-motion";
 import { ScanLine } from "lucide-react";
 import { AnalysisProgress } from "@/components/inspection/analysis-progress";
 import { useInspection } from "@/components/inspection/inspection-context";
+import { selectKeyFrames } from "@/lib/frame-selection";
 import { mockConfig } from "@/lib/mock-data";
-import { inspectionApi } from "@/lib/api";
+import {
+  inspectionService,
+  InspectionApiError,
+  inspectionErrorMessage,
+} from "@/services/inspection-service";
 import { Action, Button, DemoLabel } from "@/components/ui/primitives";
 export default function Analyzing() {
-  const {
-    inspectionId,
-    status: inspectionStatus,
-    setResult,
-    setStatus,
-  } = useInspection();
+  const { inspectionId, frames, mode, setResult, setStatus } = useInspection();
   const [progress, setProgress] = useState(0);
+  const [stage, setStage] = useState<"uploading" | "processing" | "completed">(
+    "uploading",
+  );
   const [error, setError] = useState("");
   const [retry, setRetry] = useState(0);
   const router = useRouter();
   const reduced = useReducedMotion();
   useEffect(() => {
-    if (!inspectionId || inspectionStatus === "scanning") return;
+    if (!inspectionId || !frames.length) return;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout>;
+    const deadline = Date.now() + 120_000;
     async function poll() {
       try {
-        const status = await inspectionApi.getInspectionStatus(inspectionId);
+        const status =
+          await inspectionService.getInspectionStatus(inspectionId);
         if (cancelled) return;
-        setProgress(status.progress);
-        if (
-          status.status === "potential_damage" ||
-          status.status === "complete"
-        ) {
-          const result = await inspectionApi.getInspectionResult(inspectionId);
+        setStatus(status.status);
+        setProgress(20 + status.progress * 0.8);
+        if (status.status === "failed")
+          throw new InspectionApiError("PROCESSING_FAILED");
+        if (status.status === "completed") {
+          const result =
+            await inspectionService.getInspectionResult(inspectionId);
           if (cancelled) return;
           setResult(result);
-          setStatus(result.damages.length ? "potential_damage" : "complete");
-          router.replace(result.damages.length ? "/damage" : "/result");
-        } else timer = setTimeout(poll, 200);
-      } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : "分析失敗");
+          setStatus("completed");
+          setStage("completed");
+          setProgress(100);
+          router.replace(
+            result.detectionStatus === "potential_damage"
+              ? "/damage"
+              : "/result",
+          );
+        } else {
+          if (Date.now() > deadline) throw new InspectionApiError("TIMEOUT");
+          timer = setTimeout(poll, mode === "MOCK" ? 200 : 1000);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setStatus("failed");
+          setError(inspectionErrorMessage(error));
+        }
       }
     }
-    void poll();
+    async function prepare() {
+      try {
+        setStage("uploading");
+        setStatus("uploading");
+        setProgress(5);
+        await inspectionService.uploadInspectionFrames(inspectionId, frames);
+        if (cancelled) return;
+        setProgress(15);
+        await inspectionService.completeInspection(inspectionId);
+        if (cancelled) return;
+        setStatus("processing");
+        setStage("processing");
+        await poll();
+      } catch (error) {
+        if (!cancelled) {
+          setStatus("failed");
+          setError(inspectionErrorMessage(error));
+        }
+      }
+    }
+    void prepare();
     return () => {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [inspectionId, inspectionStatus, retry, router, setResult, setStatus]);
-  if (!inspectionId || inspectionStatus === "scanning")
+  }, [inspectionId, frames, mode, retry, router, setResult, setStatus]);
+  if (!inspectionId || !frames.length)
     return (
       <div className="page">
         <h1>尚未開始檢查</h1>
@@ -69,7 +107,7 @@ export default function Analyzing() {
       </motion.div>
       <h1>AI 車況分析中</h1>
       <p className="lead">正在比對本次掃描與租車前車況</p>
-      <DemoLabel />
+      {mode === "MOCK" && <DemoLabel />}
       <div
         className="analysis-progress-bar"
         role="progressbar"
@@ -82,19 +120,27 @@ export default function Analyzing() {
           <span style={{ width: `${progress}%` }} />
         </div>
       </div>
-      <AnalysisProgress progress={progress} />
+      <AnalysisProgress
+        progress={progress}
+        stage={stage}
+        failed={Boolean(error)}
+      />
       <div className="analysis-stats">
         <div>
-          <strong>{mockConfig.analysisFrameCount}</strong>
+          <strong>{selectKeyFrames(frames).length}</strong>
           <span>張關鍵影格</span>
         </div>
         <div>
-          <strong>{mockConfig.vehiclePartCount}</strong>
+          <strong>{mode === "MOCK" ? mockConfig.vehiclePartCount : "—"}</strong>
           <span>個車體區域</span>
         </div>
       </div>
       <p className="remaining" role="status">
-        約剩 {Math.max(0, Math.ceil((100 - progress) / 25))} 秒
+        {error
+          ? "掃描資料已保留，可重試分析"
+          : mode === "MOCK"
+            ? `約剩 ${Math.max(0, Math.ceil((100 - progress) / 25))} 秒`
+            : "正在等待分析服務回應"}
       </p>
       {error && (
         <>
