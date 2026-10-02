@@ -11,6 +11,7 @@ try {
       "node_modules/typescript/bin/tsc",
       "tests/inspection.test.ts",
       "tests/camera.test.ts",
+      "tests/http-integration.test.ts",
       "--outDir",
       out,
       "--module",
@@ -33,6 +34,7 @@ try {
         "--test",
         path.join(out, "tests/inspection.test.js"),
         path.join(out, "tests/camera.test.js"),
+        path.join(out, "tests/http-integration.test.js"),
       ],
       {
         cwd: root,

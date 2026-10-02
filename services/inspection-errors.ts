@@ -3,13 +3,15 @@ export type InspectionApiErrorCode =
   | "UPLOAD_FAILED"
   | "PROCESSING_FAILED"
   | "INVALID_RESPONSE"
-  | "TIMEOUT";
+  | "TIMEOUT"
+  | "ABORTED";
 const messages: Record<InspectionApiErrorCode, string> = {
   NETWORK_ERROR: "目前無法連線至 AI 分析服務，請稍後再試。",
   UPLOAD_FAILED: "影像上傳失敗，系統將保留已完成的掃描資料。",
   PROCESSING_FAILED: "AI 分析暫時無法完成，請由人工協助確認車況。",
   INVALID_RESPONSE: "分析服務回傳的資料不完整，請稍後重試。",
-  TIMEOUT: "AI 分析服務回應逾時，請稍後再試。",
+  TIMEOUT: "AI 分析時間較長，請稍後再試。",
+  ABORTED: "已停止本次請求。",
 };
 export class InspectionApiError extends Error {
   constructor(
@@ -18,7 +20,11 @@ export class InspectionApiError extends Error {
   ) {
     super(messages[code]);
     this.name = "InspectionApiError";
-    if (process.env.NODE_ENV === "development" && details !== undefined) {
+    if (
+      process.env.NODE_ENV === "development" &&
+      details !== undefined &&
+      code !== "ABORTED"
+    ) {
       console.error(`[Inspection API: ${code}]`, details);
     }
   }

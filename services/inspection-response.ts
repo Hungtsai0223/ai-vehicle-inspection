@@ -2,6 +2,7 @@ import type {
   DamageDetection,
   InspectionProgress,
   InspectionResult,
+  ProcessingStage,
   Vehicle,
 } from "../types/inspection";
 import type { InspectionSession, UploadReceipt } from "./inspection-api";
@@ -135,6 +136,16 @@ export function parseProgress(value: unknown, id: string): InspectionProgress {
   return {
     ...parseSession(value, id),
     progress: number(record(value).progress, 100),
+    stage:
+      record(value).stage == null
+        ? undefined
+        : enumValue<ProcessingStage>(record(value).stage, [
+            "image_validation",
+            "vehicle_part_detection",
+            "damage_detection",
+            "before_after_comparison",
+            "completed",
+          ]),
   };
 }
 export function parseResult(

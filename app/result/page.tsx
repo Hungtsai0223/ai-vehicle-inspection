@@ -16,7 +16,16 @@ import {
   DemoLabel,
 } from "@/components/ui/primitives";
 export default function Result() {
-  const { result, recaptured, mode, clearFrames } = useInspection();
+  const {
+    result,
+    inspectionId,
+    sessionReady,
+    recaptured,
+    mode,
+    usingDevStub,
+    cameraMode,
+    clearFrames,
+  } = useInspection();
   const [finished, setFinished] = useState(false);
   const [selected, setSelected] = useState<string>();
   const refs = useRef<Record<string, HTMLElement | null>>({});
@@ -26,7 +35,9 @@ export default function Result() {
       <div className="page">
         <h1>尚無檢測資料</h1>
         <p className="lead">完成掃描後即可查看完整檢查結果。</p>
-        <Action href="/return">開始使用者 Demo</Action>
+        <Action href={sessionReady && inspectionId ? "/analyzing" : "/return"}>
+          {sessionReady && inspectionId ? "重新取得結果" : "開始使用者 Demo"}
+        </Action>
       </div>
     );
   function selectDamage(id: string) {
@@ -45,12 +56,14 @@ export default function Result() {
           <h1>{finished ? "還車流程完成" : "車況檢查完成"}</h1>
           <p>
             {finished
-              ? "感謝使用，這次模擬行程已結束。"
+              ? mode === "MOCK"
+                ? "感謝使用，這次模擬行程已結束。"
+                : "感謝使用，這次還車流程已結束。"
               : "AI 車況辨識結果已完成"}
           </p>
         </div>
       </div>
-      {mode === "MOCK" && <DemoLabel />}
+      {(mode === "MOCK" || usingDevStub) && <DemoLabel />}
       <VehicleCard />
       <VehicleDamageMap
         vehicleParts={result.damages.map((d) => d.part)}
@@ -75,7 +88,7 @@ export default function Result() {
         <DamageCard
           key={d.id}
           damage={d}
-          isDemo={mode === "MOCK"}
+          isDemo={mode === "MOCK" || (usingDevStub && cameraMode === "demo")}
           selected={selected === d.id}
           ref={(el) => {
             refs.current[d.id] = el;
@@ -106,7 +119,11 @@ export default function Result() {
         disabled={finished}
       >
         <Check size={20} />
-        {finished ? "已完成模擬還車" : "完成還車"}
+        {finished
+          ? mode === "MOCK"
+            ? "已完成模擬還車"
+            : "已完成還車"
+          : "完成還車"}
       </Button>
       <Action href="/dashboard" secondary>
         查看完整檢測報告

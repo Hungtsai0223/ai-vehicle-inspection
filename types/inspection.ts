@@ -52,9 +52,16 @@ export interface InspectionResult {
   damages: DamageDetection[];
   createdAt: string;
 }
+export type ProcessingStage =
+  | "image_validation"
+  | "vehicle_part_detection"
+  | "damage_detection"
+  | "before_after_comparison"
+  | "completed";
 export interface InspectionProgress {
   inspectionId: string;
   status: InspectionStatus;
   /** Percentage, 0–100. */
   progress: number;
+  stage?: ProcessingStage;
 }

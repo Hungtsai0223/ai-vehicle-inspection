@@ -116,7 +116,7 @@ test("key frames spread across the scan, preserve chronology, and never invent c
   );
   assert.equal(selectKeyFrames(frames.slice(0, 3)).length, 3);
 });
-test("HTTP adapter uses all five v1 endpoints and aligned multipart fields in seconds", async () => {
+test("HTTP adapter uses all five v1 endpoints and exact multipart fields in milliseconds", async () => {
   const requests: { url: string; init?: RequestInit }[] = [];
   const fetcher: typeof fetch = async (url, init) => {
     const path = String(url);
@@ -158,12 +158,13 @@ test("HTTP adapter uses all five v1 endpoints and aligned multipart fields in se
     ],
   );
   assert.deepEqual(JSON.parse(String(requests[0].init?.body)), {
-    vehicle: mockVehicle,
+    vehicleId: mockVehicle.id,
+    vehicleModel: mockVehicle.model,
+    plate: mockVehicle.plate,
   });
   const body = requests[1].init?.body as FormData;
-  assert.equal(body.getAll("frames[]").length, 2);
-  assert.deepEqual(body.getAll("timestamps[]"), ["0", "0.5"]);
-  assert.deepEqual(body.getAll("viewAngles[]"), ["0", "0"]);
+  assert.equal(body.getAll("frames").length, 2);
+  assert.deepEqual([...body.keys()], ["frames", "frames", "metadata"]);
   assert.equal(requests[1].init?.headers, undefined);
   const metadata = JSON.parse(String(body.get("metadata"))) as {
     frames: {
@@ -179,7 +180,7 @@ test("HTTP adapter uses all five v1 endpoints and aligned multipart fields in se
   );
   assert.deepEqual(
     metadata.frames.map((frame) => frame.timestamp),
-    [0, 0.5],
+    [0, 500],
   );
   assert.equal(metadata.frames[0].vehicleView, "front");
   assert.equal(

@@ -1,7 +1,7 @@
 export type VehicleView = "front" | "left" | "rear" | "right" | "unknown";
 export interface CapturedFrame {
   id: string;
-  /** Milliseconds since scan start; converted to seconds on upload. */
+  /** Milliseconds since scan start; sent unchanged in metadata. */
   timestamp: number;
   /** Real JPEG/PNG bytes. Mock frames deliberately omit this field. */
   blob?: Blob;

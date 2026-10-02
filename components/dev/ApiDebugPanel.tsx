@@ -10,7 +10,11 @@ export function ApiDebugPanel() {
     ["Camera", ctx.cameraMode === "real" ? "REAL" : "DEMO"],
     ["Captured total", String(ctx.capturedFrameCount)],
     ["Inspection Status", ctx.status],
-    ["Frame count", String(ctx.frames.length)],
+    ["Frame buffer", String(ctx.frames.length)],
+    ["Key frames", String(ctx.keyFrameCount)],
+    ["Uploaded", String(ctx.uploadComplete)],
+    ["Backend stage", ctx.processingStage],
+    ["Backend progress", `${Math.round(ctx.processingProgress)}%`],
     [
       "Coverage",
       ctx.result

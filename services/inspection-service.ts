@@ -2,6 +2,7 @@ import { selectKeyFrames } from "../lib/frame-selection";
 import { mockVehicle } from "../lib/mock-data";
 import type { CapturedFrame } from "../types/frame";
 import type {
+  ApiRequestOptions,
   CreateInspectionInput,
   InspectionApi,
   InspectionSession,
@@ -40,15 +41,27 @@ export function createInspectionService(
     mode,
     createInspection: (
       input: CreateInspectionInput = { vehicle: mockVehicle },
-    ) => api.createInspection(input),
+      options?: ApiRequestOptions,
+    ) => api.createInspection(input, options),
     uploadInspectionFrames: (id: string, frames: CapturedFrame[]) =>
       once(uploads, id, () =>
         api.uploadInspectionFrames(id, selectKeyFrames(frames)),
       ),
     completeInspection: (id: string) =>
       once(completions, id, () => api.completeInspection(id)),
-    getInspectionStatus: (id: string) => api.getInspectionStatus(id),
-    getInspectionResult: (id: string) => api.getInspectionResult(id),
+    getInspectionStatus: (id: string, options?: ApiRequestOptions) =>
+      api.getInspectionStatus(id, options),
+    getInspectionResult: (id: string, options?: ApiRequestOptions) =>
+      api.getInspectionResult(id, options),
+    restoreMockSession: (
+      id: string,
+      input: CreateInspectionInput,
+      frameCount: number,
+      completed: boolean,
+    ) => {
+      if (api instanceof MockInspectionApi)
+        api.restoreSession(id, input, frameCount, completed);
+    },
   };
 }
 const mode: InspectionMode =

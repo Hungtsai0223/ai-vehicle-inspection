@@ -1,40 +1,28 @@
 import { Check, LoaderCircle } from "lucide-react";
-const steps = [
-  "影像品質確認",
-  "關鍵影格上傳",
-  "車體區域辨識",
-  "車損辨識",
-  "前後影像比對",
+import type { ProcessingStage } from "@/types/inspection";
+export const processingStages: { stage: ProcessingStage; label: string }[] = [
+  { stage: "image_validation", label: "影像品質確認" },
+  { stage: "vehicle_part_detection", label: "車體區域辨識" },
+  { stage: "damage_detection", label: "車損辨識" },
+  { stage: "before_after_comparison", label: "租車前後影像比對" },
+  { stage: "completed", label: "分析完成" },
 ];
 export function AnalysisProgress({
-  progress,
   stage,
   failed = false,
 }: {
-  progress: number;
-  stage: "uploading" | "processing" | "completed";
+  stage: ProcessingStage;
   failed?: boolean;
 }) {
-  // Upload is an actual service operation. Backend progress is coarse: the remaining
-  // labels are illustrative phases, not assertions that a particular CV model ran.
-  const completedCount =
-    stage === "completed"
-      ? 5
-      : stage === "uploading"
-        ? 1
-        : progress >= 90
-          ? 4
-          : progress >= 60
-            ? 3
-            : 2;
+  const index = processingStages.findIndex((step) => step.stage === stage);
   return (
     <ol className="analysis-steps">
-      {steps.map((label, i) => {
-        const done = i < completedCount;
-        const active = i === completedCount && !failed;
+      {processingStages.map((step, i) => {
+        const done = i < index || stage === "completed";
+        const active = i === index && !failed;
         return (
           <li
-            key={label}
+            key={step.stage}
             className={done ? "complete" : active ? "active" : ""}
           >
             {done ? (
@@ -44,13 +32,13 @@ export function AnalysisProgress({
             ) : (
               <span className="step-dot" />
             )}
-            <span>{label}</span>
+            <span>{step.label}</span>
             <small>
               {done
                 ? "完成"
                 : active
                   ? "處理中"
-                  : failed && i === completedCount
+                  : failed && i === index
                     ? "待重試"
                     : "待處理"}
             </small>

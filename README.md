@@ -19,13 +19,13 @@
 `/return → /scan-guide → /scan → /analyzing → /damage → /result`
 
 1. 開始模擬掃描，進度在約 8 秒內完成。
-2. 車頭、左側、車尾、右側每段約 2 秒，指引隨進度切換；100% 顯示「車輛掃描完成」，停留約 800 ms 後進入分析。
+2. 車頭、左側、車尾、右側每段約 2 秒，指引隨進度切換；100% 選出關鍵影格，顯示「正在準備 AI 分析」／「正在上傳關鍵影格」；成功上傳與 complete 後才進入分析。
 3. 上傳與分析合計約 4 秒，輪詢 Mock API 取得結果；無異常（`no_damage`）直接進入結果，預設為 `potential_damage`。
 4. 預設發現左前車門疑似刮痕；按「前往補拍」開啟模擬拍攝對話框；0.6 秒後顯示「補拍完成」，再停留 1 秒後自動顯示結果。可取消補拍。
 5. 比較租車前、還車時與 AI Mask 示意影像，點擊車損標記會選取對應卡片。「完成還車」顯示完成狀態；「查看完整檢測報告」前往 `/dashboard`。
 6. 在掃描頁展開 Demo Controls，可模擬六種品質狀態、疑似異常、無異常、覆蓋不足與網路不佳提示。無異常直接進入結果；覆蓋不足以 Unknown 顯示，不阻擋完成。
 
-直接進入需要檢查資料的路由，或重新整理後，會提示重新掃描。Context、Mock session 與擷取影格只存在記憶體；不寫入 localStorage 或 IndexedDB，重新整理即清除。
+輕量 inspection session 以 sessionStorage 保存 id、車輛、掃描時間、影格數、模式與狀態。成功上傳後的 /analyzing 可在重新整理後恢復；/result 或 /damage 可按「重新取得結果」。影格 Blob 僅在記憶體；未上傳前重新整理需重新掃描。沒有 localStorage 或 IndexedDB 照片保存。
 
 ## Architecture
 
@@ -53,7 +53,7 @@ Frontend MVP，AI backend currently mocked。沿用既有 `/return` 設計，沒
 
 - Camera：`components/camera/CameraPreview.tsx` 切換 Mock / RealCameraPreview。真實模式只在按下「開始真實掃描」後 mount 並請求 getUserMedia；行動裝置若支援可優先顯示真實模式，桌面預設 Demo。首次進入頁面不請求權限。
 - Frames：`lib/camera-frame-capture.ts` 約每 500 ms（2 FPS）由 video → canvas → JPEG Blob（quality 0.8）擷取；最長邊 ≤ 1280 px，保持比例，不放大低解析度影像。原生 video 仍使用裝置預覽影格率。CapturedFrame 提供 Blob、previewUrl、timestamp（毫秒）、vehicleView 與 optional quality。
-- Selection / storage：`lib/frame-selection.ts` 依 front/left/rear/right 分組，每組均勻抽樣，通常選 16 張；`MemoryFrameStore` 最多保留 80 張暫存，淘汰時保留各方向。未選用的 Blob URL 立即 revoke；選定影格留到報告／開發預覽，按「完成還車」、開始新檢查或 provider 卸載後清除。中途離開掃描或切換模式會清除未完成影格；canvas 非同步結果若晚到，直接 revoke。
+- Selection / storage：`lib/frame-selection.ts` 依 front/left/rear/right 分組，每組均勻抽樣，通常選 16 張；`MemoryFrameStore` 最多保留 80 張暫存，淘汰時保留各方向。未選用的 Blob URL 立即 revoke；選定影格在上傳前可開發預覽，上傳成功後立即釋放 Blob/URL；開始新檢查或 provider 卸載同樣清除。中途離開掃描或切換模式會清除未完成影格；canvas 非同步結果若晚到，直接 revoke。
 - AI：UI 只透過 `services/inspection-service.ts` 操作。詳見 [API contract](docs/API_CONTRACT.md) 與 [AI team quick guide](docs/AI_INTEGRATION_GUIDE.md)。未新增 AI 模型、Python 套件或 3D 引擎。
 - 車輛資料與車損資訊從共用型別、資料、service 與 context 取得。Unknown 漏掃區域獨立於 no_damage；車損類型、部位與影像 URL 皆由結果提供。車體示意圖目前只校準左前車門定位，其他部位仍需擴充。
 
@@ -68,7 +68,23 @@ NEXT_PUBLIC_AI_API_URL=http://localhost:8000
 
 預設或 true 使用 Mock；只有明確設定 false 才使用 HTTP adapter。複製到 `.env.local` 後重啟 dev server，production 需重新 build。NEXT_PUBLIC 變數會公開，不可保存 API 密鑰。Mock create 延遲 300 ms、upload 500 ms、processing 約 3 秒，無需後端。
 
-HTTP adapter 提供 15 秒 request timeout、回應 JSON/schema 驗證與繁體中文安全錯誤。分析頁先上傳 → complete → 輪詢（API 每約 1 秒，最長等待 120 秒）→ 取得結果，再按 detectionStatus 導頁。失敗後本頁保留影格供重試，service 共用成功或進行中的上傳與 complete，避免 Strict Mode 或重試重複提交；重新整理會清除記憶體。
+HTTP adapter 提供 15 秒 request timeout、回應 schema 驗證與安全中文錯誤。掃描頁先上傳 → complete → /analyzing 輪詢（HTTP 每約 1 秒、最多 60 秒）→ 結果分流。失敗上傳保留記憶體影格供重試；成功上傳後釋放 Blob/URL。AbortController 在卸載、逾時或停止時取消讀取；service 共用成功的 mutations 避免重複提交。
+
+## HTTP Development Integration
+
+使用本機 HTTP stub：
+
+```dotenv
+NEXT_PUBLIC_USE_MOCK_AI=false
+NEXT_PUBLIC_AI_API_URL=http://localhost:3000/api/dev
+NEXT_PUBLIC_DEV_AI_RESULT=potential_damage
+```
+
+設定 `.env.local` 並重啟 `npm run dev`。原 Demo scan 在此開發 stub 模式會產生明確標記 DEMO 的實際 JPEG Blob，經真正 multipart HTTP 請求傳送；真實相機也可沿用。Stub 處理約 3 秒，沒有 AI。
+
+開啟 `/dev/integration` 測試五端點、上傳數、最後狀態與 raw result。可測 no_damage、potential_damage、processing_failure、result_timeout、Unknown 漏掃、缺圖、500、503、upload_failure。API URL 支援 `?result=no_damage` 或 `?failure=upload_failure`，整個掃描流程也會套用。Stub 與除錯頁在 production 回 404；影像僅存 server 記憶體（10 筆、15 分鐘 TTL），重啟即清除。
+
+跨來源 backend 的 CORS 與 exact AI team handoff 見 [AI_INTEGRATION_GUIDE](docs/AI_INTEGRATION_GUIDE.md)。
 
 開發環境提供可摺疊 API Debug：session ID、MOCK/API、相機模式、已擷取／保留影格數、coverage、processing status、raw result JSON，以及 Key Frames 縮圖。AI Result scenario 選項也僅在 development 顯示，production 不顯示除錯面板。
 
@@ -104,7 +120,7 @@ npm run format
 4. 手機直立，依車頭 → 左側 → 車尾 → 右側指引慢慢拍攝。預覽用 `<video playsInline muted autoPlay>`；橫向只顯示建議，不鎖定方向。
 5. Prototype 時間引導約 24 秒，最多自動走到 95%。只有至少 12 張有效影格且有四個估計方向時才能按「完成掃描」；不會只因時間到了自動結束。方位與進度不是 AI 車身覆蓋判定。
 6. 按完成後關閉相機，分組選出最多 16 張，繼續原本 `/analyzing → /damage 或 /result`。預設 Mock AI 不會傳送相機影像，也不分析照片內容。
-7. 在 development 的 API Debug 展開 Key Frames，核對縮圖與時間。production 沒有此面板；按「完成還車」清除本機影格。
+7. 在 development 的 API Debug 可於上傳前展開 Key Frames；成功上傳後本機影格釋放，保留影格數與 inspectionId。production 沒有此面板。
 8. 切到背景、離開掃描頁、切回 Demo、拒絕權限、關閉裝置鏡頭等情境都應停止 tracks。若權限被拒絕，可修改瀏覽器設定後重試，或選「改用 Demo 模式」。
 
 亮度只使用 32×32 canvas 的平均 luminance（0–1），低於 0.15 提示較暗；blurScore、vehicleCoverage 尚未計算。沒有實作車損、車體部位、OCR 或其他 AI 判斷。
@@ -113,16 +129,17 @@ npm run format
 
 ## Routes
 
-| Route         | Purpose                            |
-| ------------- | ---------------------------------- |
-| `/`           | Hackathon Demo 首頁                |
-| `/return`     | 還車入口與車輛資訊                 |
-| `/scan-guide` | 掃描前指引                         |
-| `/scan`       | Demo／真實相機、擷取計數與拍攝指引 |
-| `/analyzing`  | API 輪詢、分析進度、失敗重試       |
-| `/damage`     | 中性疑似異常提示及模擬補拍         |
-| `/result`     | 摘要、影像比較、報告、完成還車     |
-| `/dashboard`  | 模擬 KPI、圖表與可篩選實驗表格     |
+| Route              | Purpose                            |
+| ------------------ | ---------------------------------- |
+| `/`                | Hackathon Demo 首頁                |
+| `/return`          | 還車入口與車輛資訊                 |
+| `/scan-guide`      | 掃描前指引                         |
+| `/scan`            | Demo／真實相機、擷取計數與拍攝指引 |
+| `/analyzing`       | API 輪詢、分析進度、失敗重試       |
+| `/damage`          | 中性疑似異常提示及模擬補拍         |
+| `/result`          | 摘要、影像比較、報告、完成還車     |
+| `/dev/integration` | development-only HTTP 測試頁       |
+| `/dashboard`       | 模擬 KPI、圖表與可篩選實驗表格     |
 
 ## Project Structure
 
@@ -155,7 +172,7 @@ InspectionStatus：idle / scanning / uploading / processing / completed / failed
 
 無車損直接前往 `/result`，顯示「未偵測到明顯新增車損」，不顯示 DamageCard。missingAreas 顯示「部分區域未完整掃描 · Unknown」與部位名稱；若同時 no_damage，會註明無車損結論只適用已充分掃描區域。
 
-`npm test` 驗證相機請求共用、晚到 MediaStream 停止、權限失敗／重試、resize / JPEG 擷取、曝光 metadata、各方向抽樣、記憶體清理與三種 mock scenario、重試/重複提交、影格抽樣、五個 HTTP endpoints、multipart 對齊、null URL normalization、結果 schema、網路/HTTP/JSON/timeout 錯誤。使用 Node 內建 test runner，不需要 AI server。
+`npm test` 驗證相機請求共用、晚到 MediaStream 停止、權限失敗／重試、resize / JPEG 擷取、曝光 metadata、各方向抽樣、記憶體清理與三種 mock scenario、重試/重複提交、影格抽樣、五個 HTTP endpoints、multipart 對齊、null URL normalization、結果 schema、網路/HTTP/JSON/timeout 錯誤。使用 Node 內建 test runner，不需要 AI server；另含原生 HTTP multipart roundtrip、stub 分流／錯誤、輪詢取消及 session fallback 測試。
 
 ## Hackathon Notes
 

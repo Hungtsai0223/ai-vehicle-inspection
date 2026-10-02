@@ -1,5 +1,6 @@
 "use client";
 import Image from "next/image";
+import type { DamageDetection } from "@/types/inspection";
 import { useId, useRef, useState, type KeyboardEvent } from "react";
 interface ImageComparisonProps {
   beforeImage?: string;
@@ -7,6 +8,8 @@ interface ImageComparisonProps {
   maskImage?: string;
   location: string;
   isDemo?: boolean;
+  boundingBox?: DamageDetection["boundingBox"];
+  boxLabel?: string;
 }
 const labels = ["租車前", "還車時", "AI Mask"];
 export function ImageComparison({
@@ -15,8 +18,11 @@ export function ImageComparison({
   maskImage,
   location,
   isDemo = true,
+  boundingBox,
+  boxLabel,
 }: ImageComparisonProps) {
   const [tab, setTab] = useState(0);
+  const [failedImages, setFailedImages] = useState<string[]>([]);
   const id = useId();
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
   const images = [beforeImage, afterImage, maskImage];
@@ -63,16 +69,37 @@ export function ImageComparison({
         aria-labelledby={`${id}-tab-${tab}`}
         className="comparison-image"
       >
-        {images[tab] ? (
-          <Image
-            unoptimized
-            src={images[tab]}
-            alt={`${labels[tab]} · ${location}${isDemo ? "模擬示意" : ""}`}
-            width={640}
-            height={360}
-          />
+        {images[tab] && !failedImages.includes(images[tab]!) ? (
+          <div className="comparison-image-content">
+            <Image
+              unoptimized
+              src={images[tab]!}
+              alt={`${labels[tab]} · ${location}${isDemo ? "模擬示意" : ""}`}
+              width={640}
+              height={360}
+              onError={() =>
+                setFailedImages((previous) => [...previous, images[tab]!])
+              }
+            />
+            {tab === 1 && boundingBox && (
+              <div
+                className="result-bounding-box"
+                aria-label={boxLabel}
+                style={{
+                  left: `${boundingBox.x * 100}%`,
+                  top: `${boundingBox.y * 100}%`,
+                  width: `${boundingBox.width * 100}%`,
+                  height: `${boundingBox.height * 100}%`,
+                }}
+              >
+                <b>{boxLabel}</b>
+              </div>
+            )}
+          </div>
         ) : (
-          <div className="image-empty">影像待提供</div>
+          <div className="image-empty" role="status">
+            {images[tab] ? "影像暫時無法載入" : "影像待提供"}
+          </div>
         )}
         <span>
           {isDemo ? "Demo Image · 模擬影像，非實際車損證據" : "車況比對影像"}

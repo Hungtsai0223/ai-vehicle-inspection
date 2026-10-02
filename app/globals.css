@@ -1654,3 +1654,65 @@ footer span {
     display: block;
   }
 }
+
+.comparison-image-content {
+  position: relative;
+}
+.result-bounding-box {
+  position: absolute;
+  border: 2px solid var(--red);
+  pointer-events: none;
+}
+.result-bounding-box b {
+  position: absolute;
+  bottom: 100%;
+  left: -2px;
+  white-space: nowrap;
+  background: var(--red);
+  color: white;
+  padding: 4px 6px;
+  font-size: 10px;
+}
+.scan-complete {
+  flex-wrap: wrap;
+}
+.scan-complete small {
+  width: 100%;
+  text-align: center;
+}
+.integration-page dd {
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+.integration-actions {
+  display: grid;
+  gap: 10px;
+  margin: 20px 0;
+}
+.integration-page fieldset {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+}
+.integration-page label {
+  display: block;
+  margin: 12px 0;
+}
+.integration-page select {
+  display: block;
+  width: 100%;
+  padding: 10px;
+  margin-top: 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: white;
+  color: var(--text);
+}
+.integration-page pre {
+  overflow: auto;
+  max-height: 300px;
+  font-size: 11px;
+  background: var(--surface);
+  padding: 16px;
+  border-radius: 12px;
+}

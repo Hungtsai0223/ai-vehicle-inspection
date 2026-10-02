@@ -35,7 +35,8 @@ export default function Scan() {
     ctx.setCameraMode(value);
   }
   function primaryAction() {
-    if (mode === "real" && scan.phase === "scanning") scan.finish();
+    if (scan.phase === "upload-error") void scan.retryUpload();
+    else if (mode === "real" && scan.phase === "scanning") scan.finish();
     else {
       setSelectedMode(mode);
       scan.start(mode);
@@ -62,7 +63,11 @@ export default function Scan() {
       <div className="scan-bottom">
         <fieldset
           className="camera-mode-selector"
-          disabled={scan.phase === "complete"}
+          disabled={
+            scan.phase === "complete" ||
+            scan.phase === "upload-error" ||
+            !ctx.sessionReady
+          }
         >
           <legend className="sr-only">拍攝模式</legend>
           <button
@@ -101,7 +106,10 @@ export default function Scan() {
         {scan.phase === "complete" && (
           <p className="scan-complete" role="status">
             <CheckCircle size={18} />
-            車輛掃描完成
+            {ctx.transferStage === "uploading"
+              ? "正在上傳關鍵影格"
+              : "正在準備 AI 分析"}
+            <small>{ctx.keyFrameCount} 張關鍵影格</small>
           </p>
         )}
         <ScanProgress
@@ -110,7 +118,11 @@ export default function Scan() {
         />
         <CoverageIndicator
           progress={scan.prototypeProgress}
-          incomplete={mode === "demo" && ctx.scenario === "incomplete"}
+          incomplete={
+            mode === "demo" &&
+            ctx.mode === "MOCK" &&
+            ctx.scenario === "incomplete"
+          }
           prototype={mode === "real"}
         />
         <div className="frame-capture-count" role="status">
@@ -121,18 +133,20 @@ export default function Scan() {
             四面拍攝後，按「完成掃描」。進度與方位是時間引導，並非車輛覆蓋偵測。
           </p>
         )}
-        {mode === "demo" && ctx.poorNetwork && (
+        {mode === "demo" && ctx.mode === "MOCK" && ctx.poorNetwork && (
           <p role="status" className="notice">
             網路狀況不佳，影像已暫存於裝置，恢復連線後將自動上傳。
             <small>Demo：僅模擬提示，尚未實作離線暫存。</small>
           </p>
         )}
-        {mode === "demo" && ctx.scenario === "incomplete" && (
-          <p className="notice">
-            右側車身未完整掃描 · Unknown
-            <small>仍可完成檢查，交由後續人工確認。</small>
-          </p>
-        )}
+        {mode === "demo" &&
+          ctx.mode === "MOCK" &&
+          ctx.scenario === "incomplete" && (
+            <p className="notice">
+              右側車身未完整掃描 · Unknown
+              <small>仍可完成檢查，交由後續人工確認。</small>
+            </p>
+          )}
         {scan.error && (
           <p role="alert" className="notice">
             {scan.error}
@@ -141,26 +155,29 @@ export default function Scan() {
         <Button
           onClick={primaryAction}
           disabled={
+            !ctx.sessionReady ||
             scan.phase === "complete" ||
             scan.phase === "opening" ||
             (scan.phase === "scanning" && (mode === "demo" || !scan.canFinish))
           }
         >
-          {scan.phase === "complete"
-            ? "掃描完成，準備分析…"
-            : scan.phase === "opening"
-              ? mode === "real"
-                ? "正在開啟相機…"
-                : "正在準備掃描…"
-              : scan.phase === "scanning"
+          {scan.phase === "upload-error"
+            ? "重試上傳／準備分析"
+            : scan.phase === "complete"
+              ? "掃描完成，準備分析…"
+              : scan.phase === "opening"
                 ? mode === "real"
-                  ? "完成掃描"
-                  : "正在擷取影像…"
-                : mode === "real"
-                  ? "開始真實掃描"
-                  : "開始模擬掃描"}
+                  ? "正在開啟相機…"
+                  : "正在準備掃描…"
+                : scan.phase === "scanning"
+                  ? mode === "real"
+                    ? "完成掃描"
+                    : "正在擷取影像…"
+                  : mode === "real"
+                    ? "開始真實掃描"
+                    : "開始模擬掃描"}
         </Button>
-        {mode === "demo" && (
+        {mode === "demo" && ctx.mode === "MOCK" && (
           <DemoControls
             state={validation}
             onStateChange={setValidation}

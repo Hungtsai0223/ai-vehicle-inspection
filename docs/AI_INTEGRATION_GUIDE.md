@@ -1,61 +1,64 @@
-# AI team quick integration guide
+# AI team integration guide
 
-你們只需提供以下 endpoints；前端不依賴模型的實作方式。
+前端已能 create → 真實 JPEG multipart upload → complete → poll → result → /damage 或 /result。此里程碑沒有實作推論。
 
-| Method | Endpoint                            | Response                                                                      |
-| ------ | ----------------------------------- | ----------------------------------------------------------------------------- |
-| POST   | `/api/v1/inspections`               | `{ "inspectionId": "insp_2026_001", "status": "scanning" }`                   |
-| POST   | `/api/v1/inspections/{id}/frames`   | `{ "accepted": 16 }`                                                          |
-| POST   | `/api/v1/inspections/{id}/complete` | `{ "inspectionId": "insp_2026_001", "status": "processing" }`                 |
-| GET    | `/api/v1/inspections/{id}`          | `{ "inspectionId": "insp_2026_001", "status": "completed", "progress": 100 }` |
-| GET    | `/api/v1/inspections/{id}/result`   | 下方 JSON                                                                     |
+## Five endpoints
 
-最小後端流程：建立 session → 保存上傳影格 → complete 啟動分析 → 回傳結果。現有前端還需要上表的 GET status；同步模型可直接在 complete 後讓 status 回傳 completed / 100。create body 提供 vehicle；frames 使用 multipart 的 `frames[]`、`timestamps[]`（秒），以及可選 `viewAngles[]`（度），相同索引對應同一張影格。上傳與 complete 請支援相同 session 的安全重試。
+| Method | Endpoint                          | Response                                  |
+| ------ | --------------------------------- | ----------------------------------------- |
+| POST   | /api/v1/inspections               | inspectionId、status=scanning             |
+| POST   | /api/v1/inspections/{id}/frames   | accepted，等於影格數                      |
+| POST   | /api/v1/inspections/{id}/complete | inspectionId、status=processing/completed |
+| GET    | /api/v1/inspections/{id}          | inspectionId、status、progress、stage     |
+| GET    | /api/v1/inspections/{id}/result   | InspectionResult                          |
 
-請先回傳這個 exact result JSON 驗證串接，再替換成模型輸出：
+Create body 是 vehicleId / vehicleModel / plate。Multipart 是重複 `frames` 檔案 + 單一 `metadata` JSON；影格 timestamp 是掃描開始後的毫秒，報告 duration 是秒。完整範例及 enum 見 [API_CONTRACT.md](./API_CONTRACT.md)。
 
-```json
-{
-  "inspectionId": "insp_2026_001",
-  "vehicle": {
-    "id": "vehicle_001",
-    "model": "Toyota Yaris Cross",
-    "plate": "RAC-2026"
-  },
-  "status": "completed",
-  "detectionStatus": "potential_damage",
-  "coverage": 0.96,
-  "scanDurationSeconds": 27.4,
-  "processingTimeSeconds": 2.84,
-  "keyFrameCount": 16,
-  "missingAreas": [],
-  "damages": [
-    {
-      "id": "damage_001",
-      "part": "left_front_door",
-      "damageType": "scratch",
-      "confidence": 0.91,
-      "isPotentialNewDamage": true,
-      "beforeImageUrl": null,
-      "afterImageUrl": null,
-      "maskImageUrl": null
-    }
-  ],
-  "createdAt": "2026-10-02T00:00:00.000Z"
-}
-```
+## Switch to teammate backend
 
-無車損時設 `detectionStatus: "no_damage"`、`damages: []`。漏掃區域使用 `missingAreas: ["right_rear_door"]`，代表 Unknown，不能宣稱該部位沒有車損。confidence/coverage 都用 0–1，所有 duration 用秒。完整 enum 與 HTTP codes 見 [API_CONTRACT.md](./API_CONTRACT.md)。
-
-模型可以使用 YOLO、SAM、OpenCV、PyTorch 或其他方式。FastAPI 僅為可選的 HTTP server 範例，並非要求；此專案沒有安裝或實作任何模型。
-
-前端 `.env.local` 設定後重新啟動（正式環境重新 build）：
+`.env.local`：
 
 ```dotenv
 NEXT_PUBLIC_USE_MOCK_AI=false
 NEXT_PUBLIC_AI_API_URL=http://localhost:8000
 ```
 
-CameraPreview 現在支援 Demo 與真實相機。Demo metadata 不含影像 bytes，HTTP adapter 仍會拒絕這種上傳；真實模式會產生實際 JPEG Blob 與 previewUrl。API 模式將選定的 12–20 張影格（通常 16）以 frames[] / timestamps[] / 可選 viewAngles[] 上傳，另外附上 metadata JSON（frames 陣列中的 id、timestamp 秒、vehicleView、quality）。
+重啟 dev server；production 重新 build。NEXT_PUBLIC 設定可被使用者讀取，不能放密鑰。
 
-vehicleView 只是依 Prototype 時間進度估計；exposureScore 是平均亮度，blurScore 與 vehicleCoverage 可省略。請由後端計算真正的車輛角度、覆蓋率與模型結果。手機相機驗證流程見 README 的 Mobile Camera Testing。
+外部 AI backend 的 Demo metadata 不會冒充實拍影像上傳；請使用真實相機拍攝。只有本機 development stub 能用明確標記 DEMO 的 JPEG fixture 驗證 HTTP。
+
+## HTTP development stub
+
+```dotenv
+NEXT_PUBLIC_USE_MOCK_AI=false
+NEXT_PUBLIC_AI_API_URL=http://localhost:3000/api/dev
+NEXT_PUBLIC_DEV_AI_RESULT=potential_damage
+```
+
+執行 `npm run dev`；從 /return → /scan-guide → /scan 選 Demo 可用真實 canvas JPEG bytes 走完整 HTTP 流程；真實相機使用既有 capture pipeline。Stub 五個 endpoints 位於 /api/dev/api/v1/inspections，約 3 秒處理，不執行 AI。
+
+開啟 /dev/integration，可測 Create、Connection、No Damage、Potential Damage，並選 processing_failure、result_timeout、incomplete、missing_images、500、503、upload_failure。Connection 透過 create 驗證契約，會建立空的開發紀錄。
+
+也可在 API URL 加 query，例如 `http://localhost:3000/api/dev?result=no_damage`、`?result=processing_failure`、`?failure=upload_failure`；query 將保留到每個 endpoint。upload_failure 在每筆 inspection 的首次上傳失敗，再按重試可成功。result query 優先於 NEXT_PUBLIC_DEV_AI_RESULT。
+
+Stub 只在 NODE_ENV=development 接受請求；production /dev/integration 與 stub endpoints 都回 404。只保留最近 10 筆記憶體 session，TTL 15 分鐘，單批最多 20 張、單圖 2 MB、總 request 24 MB。重啟或 TTL 到期會遺失影像，圖片顯示 fallback；沒有 disk storage 或認證。這是開發 stub，不適用正式多程序環境。
+
+## CORS
+
+若 FastAPI 在 `http://localhost:8000`，前端在 `http://localhost:3000`，兩者是不同 origin。**後端**須允許 frontend origin、GET/POST、Content-Type 以及 OPTIONS preflight。
+
+依照 [FastAPI 官方 CORS 說明](https://fastapi.tiangolo.com/tutorial/cors/)，allow_origins 先包含 `http://localhost:3000`，之後加入實際部署的前端 HTTPS URL。若改用 127.0.0.1 或不同 port，必須一併設定對應 origin。此前端不放入 FastAPI 專用 CORS 程式碼。
+
+手機無法透過自己的 localhost 連到電腦 backend；手機測試需要可到達的 HTTPS API URL，避免 HTTPS 前端呼叫 HTTP API 的 mixed content。詳見 README Mobile Camera Testing。
+
+## Session and retries
+
+/scan 上傳成功才進 /analyzing。成功上傳後本機 Blob/URL 釋放；sessionStorage 只含輕量 metadata。/analyzing 每約 1 秒依 backend stage 更新 UI，60 秒逾時顯示「AI 分析時間較長，請稍後再試。」與「重新取得結果」。不刪除 inspection session。
+
+refresh 後 /analyzing 可重新輪詢；refresh /result 或 /damage 可按「重新取得結果」。尚未上傳的實拍 Blob 不會序列化，refresh 需重新掃描。backend 應使批次上傳與 complete 可安全重試。
+
+## Exact teammate handoff
+
+請提供 base URL、五個 endpoints、CORS origins、最大影像大小與圖片保存政策。每項車損包含 id、part、damageType、confidence、isPotentialNewDamage；選擇性 boundingBox、beforeImageUrl、afterImageUrl、maskImageUrl。請用 0–1 信心度/coverage、normalized bounding box、獨立 missingAreas；回傳 no_damage 時 damages 必須空陣列。
+
+前端不依賴模型/訓練方式；先回傳契約 JSON 即可測試，再替換推論輸出。此專案未安裝 YOLO、SAM、PyTorch、Python 或 Three.js。

@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { AlertCircle, Camera } from "lucide-react";
 import { useInspection } from "@/components/inspection/inspection-context";
 import { VehicleDamageMap } from "@/components/vehicle/vehicle-damage-map";
+import { ImageComparison } from "@/components/inspection/image-comparison";
 import { RecaptureDialog } from "@/components/inspection/recapture-dialog";
 import { partLabels, damageLabels } from "@/lib/inspection-labels";
 import {
@@ -14,7 +15,16 @@ import {
   DemoLabel,
 } from "@/components/ui/primitives";
 export default function Damage() {
-  const { result, mode, setRecaptured, setStatus } = useInspection();
+  const {
+    result,
+    inspectionId,
+    sessionReady,
+    mode,
+    usingDevStub,
+    cameraMode,
+    setRecaptured,
+    setStatus,
+  } = useInspection();
   const router = useRouter();
   const [capturing, setCapturing] = useState(false);
   const finishCapture = useCallback(() => {
@@ -26,7 +36,9 @@ export default function Damage() {
     return (
       <div className="page">
         <h1>尚無檢測資料</h1>
-        <Action href="/scan">開始掃描</Action>
+        <Action href={sessionReady && inspectionId ? "/analyzing" : "/scan"}>
+          {sessionReady && inspectionId ? "重新取得結果" : "開始掃描"}
+        </Action>
       </div>
     );
   const damage = result.damages[0];
@@ -50,7 +62,7 @@ export default function Damage() {
       </p>
       <div className="damage-badges">
         <span className="alert-label">Potential New Damage</span>
-        {mode === "MOCK" && <DemoLabel />}
+        {(mode === "MOCK" || usingDevStub) && <DemoLabel />}
       </div>
       <VehicleDamageMap
         vehicleParts={[damage.part]}
@@ -79,6 +91,23 @@ export default function Damage() {
           </div>
         </dl>
       </Card>
+      <ImageComparison
+        beforeImage={damage.beforeImageUrl}
+        afterImage={damage.afterImageUrl}
+        maskImage={damage.maskImageUrl}
+        boundingBox={damage.boundingBox}
+        boxLabel={`${type.en} · ${Math.round(damage.confidence * 100)}%`}
+        location={part.zh}
+        isDemo={mode === "MOCK" || (usingDevStub && cameraMode === "demo")}
+      />
+      {result.damages.length > 1 && (
+        <p className="notice">
+          共 {result.damages.length} 處疑似異常，完整清單可在結果頁查看。
+        </p>
+      )}
+      <Action href="/result" secondary>
+        查看完整檢測結果
+      </Action>
       <p className="recapture-instruction">
         為提高辨識準確度，請靠近標示區域補拍一張清晰影像。
       </p>

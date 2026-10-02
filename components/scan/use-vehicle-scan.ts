@@ -30,11 +30,12 @@ export function useVehicleScan() {
     clearFrames,
     frames,
     setCameraMode,
+    prepareAnalysis,
   } = useInspection();
   const router = useRouter();
   const [prototypeProgress, setPrototypeProgress] = useState(0);
   const [phase, setPhase] = useState<
-    "idle" | "opening" | "scanning" | "complete"
+    "idle" | "opening" | "scanning" | "complete" | "upload-error"
   >("idle");
   const [cameraRequested, setCameraRequested] = useState(false);
   const [cameraRequestId, setCameraRequestId] = useState(0);
@@ -45,6 +46,7 @@ export function useVehicleScan() {
   const mounted = useRef(true);
   const committed = useRef(false);
   const started = useRef(0);
+  const scanDuration = useRef(0);
   const activeMode = useRef<CameraMode>("demo");
   const controller = useRef<AbortController | undefined>(undefined);
   const interval = useRef<ReturnType<typeof setInterval> | undefined>(
@@ -112,6 +114,22 @@ export function useVehicleScan() {
       ),
     };
   }, []);
+  const upload = useCallback(async () => {
+    const token = run.current;
+    controller.current = new AbortController();
+    updatePhase("complete");
+    setError("");
+    try {
+      await prepareAnalysis(scanDuration.current, controller.current.signal);
+      if (!mounted.current || token !== run.current) return;
+      committed.current = true;
+      router.push("/analyzing");
+    } catch (error) {
+      if (!mounted.current || token !== run.current) return;
+      setError(inspectionErrorMessage(error));
+      updatePhase("upload-error");
+    }
+  }, [prepareAnalysis, router, updatePhase]);
   const finish = useCallback(() => {
     if (phaseRef.current !== "scanning") return;
     if (activeMode.current === "real" && !enoughFrames(getFrames())) return;
@@ -127,13 +145,9 @@ export function useVehicleScan() {
           addFrame(createMockFrame(i, i * 500));
     }
     retainKeyFrames();
-    committed.current = true;
+    scanDuration.current = (performance.now() - started.current) / 1000;
     setCameraRequested(false); // Unmounts real preview, stopping every track.
-    timeout.current = setTimeout(() => {
-      if (!mounted.current) return;
-      setStatus("uploading");
-      router.push("/analyzing");
-    }, mockConfig.scanCompleteDelayMs);
+    void upload();
   }, [
     clearTimers,
     updatePhase,
@@ -141,8 +155,7 @@ export function useVehicleScan() {
     getFrames,
     addFrame,
     retainKeyFrames,
-    setStatus,
-    router,
+    upload,
   ]);
   const startScanning = useCallback(
     async (mode: CameraMode) => {
@@ -228,6 +241,7 @@ export function useVehicleScan() {
     phase,
     error,
     start,
+    retryUpload: upload,
     finish,
     reset,
     onFrameCapture,

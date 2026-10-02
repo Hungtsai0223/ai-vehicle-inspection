@@ -52,6 +52,8 @@ export function DamageCard({
         afterImage={damage.afterImageUrl}
         maskImage={damage.maskImageUrl}
         location={part.zh}
+        boundingBox={damage.boundingBox}
+        boxLabel={`${type.en} · ${Math.round(damage.confidence * 100)}%`}
         isDemo={isDemo}
       />
     </section>

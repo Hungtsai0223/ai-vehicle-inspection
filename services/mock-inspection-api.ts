@@ -23,6 +23,20 @@ export class MockInspectionApi implements InspectionApi {
       processing: mockConfig.analysisDurationMs,
     },
   ) {}
+  restoreSession(
+    id: string,
+    input: CreateInspectionInput,
+    frameCount: number,
+    completed: boolean,
+  ) {
+    if (this.sessions.has(id)) return;
+    this.sessions.set(id, {
+      ...input,
+      createdAt: new Date().toISOString(),
+      frameCount,
+      processingStarted: Date.now() - (completed ? this.timings.processing : 0),
+    });
+  }
   private session(id: string) {
     const session = this.sessions.get(id);
     if (!session)
@@ -69,6 +83,16 @@ export class MockInspectionApi implements InspectionApi {
           );
     return {
       inspectionId: id,
+      stage:
+        progress >= 100
+          ? "completed"
+          : progress < 25
+            ? "image_validation"
+            : progress < 50
+              ? "vehicle_part_detection"
+              : progress < 75
+                ? "damage_detection"
+                : "before_after_comparison",
       progress,
       status:
         session.processingStarted === undefined
