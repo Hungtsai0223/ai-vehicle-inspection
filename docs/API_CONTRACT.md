@@ -49,6 +49,23 @@
 | `timestamps[]` | Yes      | 重複欄位，掃描開始後的秒數，依影格順序排列         |
 | `viewAngles[]` | No       | 重複欄位，front=0、left=90、rear=180、right=270 度 |
 
+HTTP adapter 另附 `metadata` JSON 欄位，與 frames[] 相同順序；最小後端可先接受並忽略未使用的 quality 資訊：
+
+```json
+{
+  "frames": [
+    {
+      "id": "frame_001",
+      "timestamp": 0.5,
+      "vehicleView": "front",
+      "quality": { "exposureScore": 0.62 }
+    }
+  ]
+}
+```
+
+metadata.timestamp 同樣以秒計。exposureScore 是 32×32 樣本平均亮度（0–1）；blurScore 與 vehicleCoverage 未計算時省略，不可把進度方位或亮度當作 AI 判定。Mock mode 模擬成功上傳，不傳送實拍影像。
+
 三組欄位依序對齊，數量相同。任何影格視角 unknown 時，前端會省略整組 viewAngles。這是粗略視角標籤，並非校準後相機姿態。不要自行設定 multipart Content-Type；瀏覽器會加入 boundary。
 
 200 回應（例如 16 張）：
@@ -163,4 +180,4 @@
 
 ## Integration boundaries
 
-前端尚未實作真實攝影機、離線持久化、登入認證或 session 恢復。API base URL 是 build-time 公開設定；不可放置密鑰。跨來源測試請讓後端允許前端 origin（例如 localhost:3000）的 GET/POST、Content-Type 與 OPTIONS。正式認證、影像保存策略、upload 大小限制與相機擷取另行約定。
+前端已實作使用者啟動的真實相機與記憶體影格管線；尚未實作離線持久化、登入認證或 session 恢復。API base URL 是 build-time 公開設定；不可放置密鑰。跨來源測試請讓後端允許前端 origin（例如 localhost:3000）的 GET/POST、Content-Type 與 OPTIONS。正式認證、影像保存策略、upload 大小限制與相機擷取另行約定。

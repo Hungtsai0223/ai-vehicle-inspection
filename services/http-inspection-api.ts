@@ -111,6 +111,17 @@ export class HttpInspectionApi implements InspectionApi {
       if (allViewsKnown && frame.vehicleView !== "unknown")
         body.append("viewAngles[]", String(viewAngles[frame.vehicleView]));
     }
+    body.append(
+      "metadata",
+      JSON.stringify({
+        frames: frames.map((frame) => ({
+          id: frame.id,
+          timestamp: frame.timestamp / 1000,
+          vehicleView: frame.vehicleView,
+          quality: frame.quality,
+        })),
+      }),
+    );
     // Browser sets multipart boundary; do not set Content-Type manually.
     return parseUpload(
       await this.request(

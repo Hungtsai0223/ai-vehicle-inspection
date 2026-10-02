@@ -139,12 +139,10 @@ test("HTTP adapter uses all five v1 endpoints and aligned multipart fields in se
     vehicle: mockVehicle,
     scenario: "no_damage",
   });
-  const realFrames = frames
-    .slice(0, 2)
-    .map((frame) => ({
-      ...frame,
-      blob: new Blob([new Uint8Array([255, 216, 255])], { type: "image/jpeg" }),
-    }));
+  const realFrames = frames.slice(0, 2).map((frame) => ({
+    ...frame,
+    blob: new Blob([new Uint8Array([255, 216, 255])], { type: "image/jpeg" }),
+  }));
   await api.uploadInspectionFrames(inspectionId, realFrames);
   await api.completeInspection(inspectionId);
   await api.getInspectionStatus(inspectionId);
@@ -167,6 +165,27 @@ test("HTTP adapter uses all five v1 endpoints and aligned multipart fields in se
   assert.deepEqual(body.getAll("timestamps[]"), ["0", "0.5"]);
   assert.deepEqual(body.getAll("viewAngles[]"), ["0", "0"]);
   assert.equal(requests[1].init?.headers, undefined);
+  const metadata = JSON.parse(String(body.get("metadata"))) as {
+    frames: {
+      id: string;
+      timestamp: number;
+      vehicleView: string;
+      quality: Record<string, number>;
+    }[];
+  };
+  assert.deepEqual(
+    metadata.frames.map((frame) => frame.id),
+    realFrames.map((frame) => frame.id),
+  );
+  assert.deepEqual(
+    metadata.frames.map((frame) => frame.timestamp),
+    [0, 0.5],
+  );
+  assert.equal(metadata.frames[0].vehicleView, "front");
+  assert.equal(
+    metadata.frames[0].quality.exposureScore,
+    realFrames[0].quality.exposureScore,
+  );
 });
 test("API mode rejects mock metadata rather than uploading fabricated images", async () => {
   let called = false;

@@ -1529,3 +1529,128 @@ footer span {
   display: block;
   max-width: 330px;
 }
+
+.camera-mode-selector {
+  display: flex;
+  gap: 4px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 3px;
+  margin: 0 0 12px;
+}
+.camera-mode-selector button {
+  flex: 1;
+  background: transparent;
+  color: #53606f;
+  border: 0;
+  border-radius: 7px;
+  padding: 7px 8px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.camera-mode-selector button[aria-pressed="true"] {
+  background: #465562;
+  color: #fff;
+  font-weight: 650;
+}
+.camera-mode-selector:disabled button {
+  cursor: default;
+}
+.camera-privacy-note,
+.prototype-progress-note {
+  font-size: 11px;
+  line-height: 1.6;
+  color: #53606f;
+  margin: 0 0 10px;
+}
+.camera-privacy-note small {
+  display: block;
+  font-size: 10px;
+  color: #637180;
+}
+.frame-capture-count {
+  font-size: 11px;
+  color: var(--muted);
+  display: flex;
+  justify-content: space-between;
+  margin: -4px 0 10px;
+}
+.frame-capture-count b {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.portrait-suggestion {
+  display: none;
+  font-size: 11px;
+  color: var(--amber);
+}
+.camera-instructions {
+  z-index: 3;
+}
+.real-camera-preview video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.real-camera-preview .camera-label {
+  z-index: 4;
+  background: #17232ccc;
+  border-radius: 8px;
+  padding: 6px 8px;
+}
+.real-camera-preview .bounding-box {
+  pointer-events: none;
+}
+.camera-access-message {
+  position: absolute;
+  z-index: 5;
+  top: 24%;
+  left: 20px;
+  right: 20px;
+  padding: 15px;
+  border-radius: 12px;
+  background: #17232ee8;
+  text-align: center;
+  font-size: 13px;
+  line-height: 1.7;
+  color: #fff;
+}
+.camera-access-message button {
+  color: #fff;
+  border: 1px solid #8695a0;
+  border-radius: 7px;
+  background: transparent;
+  padding: 8px 12px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.camera-shell .real-scan .scan-overlay {
+  min-height: 330px;
+}
+.key-frame-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+.key-frame-grid figure {
+  margin: 0;
+  min-width: 0;
+}
+.key-frame-grid img {
+  display: block;
+  width: 100%;
+  height: 70px;
+  object-fit: cover;
+  border-radius: 4px;
+}
+.key-frame-grid figcaption {
+  font-size: 9px;
+  margin: 4px 0;
+  color: #5b6673;
+}
+@media (orientation: landscape) and (pointer: coarse) {
+  .portrait-suggestion {
+    display: block;
+  }
+}

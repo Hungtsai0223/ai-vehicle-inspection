@@ -16,7 +16,7 @@ import {
   DemoLabel,
 } from "@/components/ui/primitives";
 export default function Result() {
-  const { result, recaptured, mode } = useInspection();
+  const { result, recaptured, mode, clearFrames } = useInspection();
   const [finished, setFinished] = useState(false);
   const [selected, setSelected] = useState<string>();
   const refs = useRef<Record<string, HTMLElement | null>>({});
@@ -98,7 +98,13 @@ export default function Result() {
         </p>
       )}
       <Disclaimer />
-      <Button onClick={() => setFinished(true)} disabled={finished}>
+      <Button
+        onClick={() => {
+          clearFrames();
+          setFinished(true);
+        }}
+        disabled={finished}
+      >
         <Check size={20} />
         {finished ? "已完成模擬還車" : "完成還車"}
       </Button>

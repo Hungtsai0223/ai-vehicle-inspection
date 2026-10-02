@@ -1,3 +1,4 @@
+import { createUniqueId } from "../lib/unique-id";
 import { mockConfig, resultFor } from "../lib/mock-data";
 import type { CapturedFrame } from "../types/frame";
 import type { InspectionProgress } from "../types/inspection";
@@ -33,7 +34,7 @@ export class MockInspectionApi implements InspectionApi {
   }
   async createInspection(input: CreateInspectionInput) {
     await wait(this.timings.create);
-    const inspectionId = `demo_${crypto.randomUUID()}`;
+    const inspectionId = createUniqueId("demo");
     this.sessions.set(inspectionId, {
       ...input,
       createdAt: new Date().toISOString(),

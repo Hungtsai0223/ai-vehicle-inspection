@@ -17,6 +17,7 @@ export {
   MockCameraPreview,
   BoundingBox,
 } from "@/components/camera/mock-camera-preview";
+import type { CameraPermissionState } from "@/types/camera";
 import type { ScanState } from "@/types/inspection";
 export const validationMessages: Record<ScanState, string> = {
   good: "拍攝狀態良好",
@@ -34,7 +35,13 @@ const stateIcons = {
   too_fast: Gauge,
   too_dark: SunMoon,
 };
-export function ScanStatusBadge({ state }: { state: ScanState }) {
+export function ScanStatusBadge({
+  state,
+  label,
+}: {
+  state: ScanState;
+  label?: string;
+}) {
   const Icon = stateIcons[state];
   return (
     <div
@@ -42,7 +49,7 @@ export function ScanStatusBadge({ state }: { state: ScanState }) {
       className={`scan-status ${state === "good" ? "good" : "warning"}`}
     >
       <Icon size={18} />
-      {validationMessages[state]}
+      {label ?? validationMessages[state]}
     </div>
   );
 }
@@ -60,24 +67,43 @@ export function scanDirection(progress: number) {
 export function ScanOverlay({
   state = "good",
   progress,
-  scanActive,
-  onFrameCapture,
-}: CameraPreviewProps & { progress: number }) {
+  mode = "demo",
+  cameraPermission = "idle",
+  ...cameraProps
+}: CameraPreviewProps & {
+  progress: number;
+  cameraPermission?: CameraPermissionState;
+}) {
   const distanceGood = state !== "too_close" && state !== "too_far";
   const clarityGood =
     state !== "blurry" && state !== "too_dark" && state !== "too_fast";
-  const validations = [
-    { label: "車輛完整入鏡", valid: true },
-    { label: distanceGood ? "距離適中" : "調整拍攝距離", valid: distanceGood },
-    { label: clarityGood ? "畫面清晰" : "調整影像品質", valid: clarityGood },
-  ];
+  const validations =
+    mode === "real"
+      ? [
+          { label: "請完整拍攝車身", valid: true },
+          { label: "距離約 1–2 公尺", valid: true },
+          { label: "保持手機穩定", valid: true },
+        ]
+      : [
+          { label: "車輛完整入鏡", valid: true },
+          {
+            label: distanceGood ? "距離適中" : "調整拍攝距離",
+            valid: distanceGood,
+          },
+          {
+            label: clarityGood ? "畫面清晰" : "調整影像品質",
+            valid: clarityGood,
+          },
+        ];
+  const liveLabel =
+    cameraPermission === "permission_granted"
+      ? state === "too_dark"
+        ? "影像亮度較低，請移至明亮處"
+        : "相機已就緒 · 依指引拍攝"
+      : "相機尚未就緒";
   return (
     <div className="scan-overlay">
-      <CameraPreview
-        state={state}
-        scanActive={scanActive}
-        onFrameCapture={onFrameCapture}
-      />
+      <CameraPreview state={state} mode={mode} {...cameraProps} />
       <div className="camera-instructions">
         <div className="direction" role="status">
           <ArrowRight size={22} />
@@ -86,21 +112,36 @@ export function ScanOverlay({
         <div className="checks">
           {validations.map(({ label, valid }) => (
             <span className={valid ? "" : "needs-adjustment"} key={label}>
-              {valid ? <Check size={14} /> : <AlertTriangle size={14} />}{" "}
+              {mode === "real" ? (
+                <Focus size={14} />
+              ) : valid ? (
+                <Check size={14} />
+              ) : (
+                <AlertTriangle size={14} />
+              )}{" "}
               {label}
             </span>
           ))}
         </div>
-        <ScanStatusBadge state={state} />
+        <ScanStatusBadge
+          state={state}
+          label={mode === "real" ? liveLabel : undefined}
+        />
       </div>
     </div>
   );
 }
-export function ScanProgress({ progress }: { progress: number }) {
+export function ScanProgress({
+  progress,
+  prototype = false,
+}: {
+  progress: number;
+  prototype?: boolean;
+}) {
   return (
     <div className="scan-progress">
       <div className="row">
-        <strong>掃描進度</strong>
+        <strong>{prototype ? "拍攝引導進度" : "掃描進度"}</strong>
         <b>
           {Math.round(progress)}
           <small>%</small>
@@ -108,7 +149,7 @@ export function ScanProgress({ progress }: { progress: number }) {
       </div>
       <div
         role="progressbar"
-        aria-label="車輛掃描進度"
+        aria-label={prototype ? "Prototype 拍攝引導進度" : "車輛掃描進度"}
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={Math.round(progress)}
@@ -122,12 +163,19 @@ export function ScanProgress({ progress }: { progress: number }) {
 export function CoverageIndicator({
   progress,
   incomplete = false,
+  prototype = false,
 }: {
   progress: number;
   incomplete?: boolean;
+  prototype?: boolean;
 }) {
   return (
-    <div className="coverage" aria-label="四面車身掃描覆蓋">
+    <div
+      className="coverage"
+      aria-label={
+        prototype ? "四面拍攝階段引導（非覆蓋偵測）" : "四面車身掃描覆蓋"
+      }
+    >
       {["車頭", "左側", "車尾", "右側"].map((label, i) => {
         const done = progress >= (i + 1) * 25;
         const current = progress >= i * 25;
@@ -147,10 +195,14 @@ export function CoverageIndicator({
               ) : done ? (
                 <>
                   <Check size={11} />
-                  完成
+                  {prototype ? "引導完成" : "完成"}
                 </>
               ) : current ? (
-                "掃描中"
+                prototype ? (
+                  "拍攝中"
+                ) : (
+                  "掃描中"
+                )
               ) : (
                 "待掃描"
               )}

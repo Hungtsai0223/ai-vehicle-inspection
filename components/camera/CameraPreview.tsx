@@ -2,21 +2,33 @@
 import { useEffect } from "react";
 import type { CapturedFrame } from "@/types/frame";
 import type { ScanState } from "@/types/inspection";
+import type { CameraMode, CameraPermissionState } from "@/types/camera";
 import { createMockFrame } from "@/lib/mock-frames";
 import { MockCameraPreview } from "./mock-camera-preview";
+import { RealCameraPreview } from "./RealCameraPreview";
 export interface CameraPreviewProps {
   onFrameCapture?: (frame: CapturedFrame) => void;
   scanActive: boolean;
   state?: ScanState;
+  mode?: CameraMode;
+  cameraRequested?: boolean;
+  cameraRequestId?: number;
+  onCameraReady?: () => void;
+  onCameraStateChange?: (state: CameraPermissionState) => void;
+  onCaptureError?: (message: string) => void;
+  onUseDemo?: () => void;
+  getCaptureMetadata?: () => { timestamp: number; prototypeProgress: number };
 }
-/** The default camera stays simulated; no media permissions are requested. */
-export function CameraPreview({
-  onFrameCapture,
-  scanActive,
-  state = "good",
-}: CameraPreviewProps) {
+export function CameraPreview(props: CameraPreviewProps) {
+  const {
+    onFrameCapture,
+    scanActive,
+    state = "good",
+    mode = "demo",
+    cameraRequested = false,
+  } = props;
   useEffect(() => {
-    if (!scanActive || !onFrameCapture) return;
+    if (mode !== "demo" || !scanActive || !onFrameCapture) return;
     const started = performance.now();
     let index = 0;
     const capture = () => {
@@ -26,7 +38,15 @@ export function CameraPreview({
     capture();
     const timer = setInterval(capture, 500);
     return () => clearInterval(timer);
-  }, [scanActive, onFrameCapture]);
-  return <MockCameraPreview state={state} />;
+  }, [mode, scanActive, onFrameCapture]);
+  if (mode === "real" && cameraRequested)
+    return <RealCameraPreview key={props.cameraRequestId} {...props} />;
+  return (
+    <MockCameraPreview
+      state={state}
+      aimOnly={mode === "real"}
+      label={mode === "real" ? "真實相機 · 按開始後開啟" : undefined}
+    />
+  );
 }
 export default CameraPreview;

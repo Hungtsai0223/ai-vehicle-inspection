@@ -10,6 +10,7 @@ try {
     [
       "node_modules/typescript/bin/tsc",
       "tests/inspection.test.ts",
+      "tests/camera.test.ts",
       "--outDir",
       out,
       "--module",
@@ -28,7 +29,11 @@ try {
   else {
     const tested = spawnSync(
       process.execPath,
-      ["--test", path.join(out, "tests/inspection.test.js")],
+      [
+        "--test",
+        path.join(out, "tests/inspection.test.js"),
+        path.join(out, "tests/camera.test.js"),
+      ],
       {
         cwd: root,
         stdio: "inherit",

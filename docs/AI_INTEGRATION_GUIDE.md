@@ -56,4 +56,6 @@ NEXT_PUBLIC_USE_MOCK_AI=false
 NEXT_PUBLIC_AI_API_URL=http://localhost:8000
 ```
 
-目前 CameraPreview 仍為 mock，產生的是無影像 bytes 的 metadata，API adapter 會拒絕這種上傳。要端到端測試真實影像，先在 CameraPreview 介面接入實際 JPEG/PNG CapturedFrame.blob；RealCameraPreview 目前刻意停用。尚未完成相機擷取時可用既有 adapter tests 驗證 HTTP 合約，再保持 mock=true 展示原流程。
+CameraPreview 現在支援 Demo 與真實相機。Demo metadata 不含影像 bytes，HTTP adapter 仍會拒絕這種上傳；真實模式會產生實際 JPEG Blob 與 previewUrl。API 模式將選定的 12–20 張影格（通常 16）以 frames[] / timestamps[] / 可選 viewAngles[] 上傳，另外附上 metadata JSON（frames 陣列中的 id、timestamp 秒、vehicleView、quality）。
+
+vehicleView 只是依 Prototype 時間進度估計；exposureScore 是平均亮度，blurScore 與 vehicleCoverage 可省略。請由後端計算真正的車輛角度、覆蓋率與模型結果。手機相機驗證流程見 README 的 Mobile Camera Testing。

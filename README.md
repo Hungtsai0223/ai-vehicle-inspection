@@ -25,7 +25,7 @@
 5. 比較租車前、還車時與 AI Mask 示意影像，點擊車損標記會選取對應卡片。「完成還車」顯示完成狀態；「查看完整檢測報告」前往 `/dashboard`。
 6. 在掃描頁展開 Demo Controls，可模擬六種品質狀態、疑似異常、無異常、覆蓋不足與網路不佳提示。無異常直接進入結果；覆蓋不足以 Unknown 顯示，不阻擋完成。
 
-直接進入需要檢查資料的路由，或重新整理後，會提示重新掃描。Context 與 Mock session 只存在記憶體，不保存照片或個資。
+直接進入需要檢查資料的路由，或重新整理後，會提示重新掃描。Context、Mock session 與擷取影格只存在記憶體；不寫入 localStorage 或 IndexedDB，重新整理即清除。
 
 ## Architecture
 
@@ -45,14 +45,15 @@ Frontend MVP，AI backend currently mocked。沿用既有 `/return` 設計，沒
 
 ## Current MVP
 
-所有 AI 回應、時間、車損、信心度、攝影機與績效數值均為 **MOCK / DEMO DATA**。SVG 圖片不是實際車損證據。掃描產生並上傳 16 張模擬影格，分析與報告顯示同一批影格數量；8 秒是展示掃描時間，27.4 秒為模擬報告數據。
+所有 AI 回應、報告時間、車損、信心度、Demo 攝影機與績效數值均為 **MOCK / DEMO DATA**。SVG 圖片不是實際車損證據。掃描產生並上傳 16 張模擬影格，分析與報告顯示同一批影格數量；8 秒是展示掃描時間，27.4 秒為模擬報告數據。
 
 網路不佳僅模擬 UI 提示，**尚未實作 IndexedDB 離線暫存與重傳**。完成還車只改變本機 Demo 狀態，不會操作真實租車帳號。此為可建置的前端 MVP，正式部署仍需端到端後端整合與真實資料驗證。
 
 ## Future Integration
 
-- Camera：`components/camera/CameraPreview.tsx` 保留既有 MockCameraPreview 視覺，提供 scanActive / onFrameCapture。`RealCameraPreview.tsx` 目前停用，已註明 getUserMedia、後鏡頭、權限與 track cleanup TODO，沒有啟用攝影機。
-- Frames：`types/frame.ts` 定義 CapturedFrame；mock 不含 Blob。`lib/frame-selection.ts` 依時間均勻選取最多 16 張，未來可擴充清晰度、覆蓋率、視角、差異與曝光排名。HTTP adapter 必須取得實際 JPEG/PNG 才能上傳。
+- Camera：`components/camera/CameraPreview.tsx` 切換 Mock / RealCameraPreview。真實模式只在按下「開始真實掃描」後 mount 並請求 getUserMedia；行動裝置若支援可優先顯示真實模式，桌面預設 Demo。首次進入頁面不請求權限。
+- Frames：`lib/camera-frame-capture.ts` 約每 500 ms（2 FPS）由 video → canvas → JPEG Blob（quality 0.8）擷取；最長邊 ≤ 1280 px，保持比例，不放大低解析度影像。原生 video 仍使用裝置預覽影格率。CapturedFrame 提供 Blob、previewUrl、timestamp（毫秒）、vehicleView 與 optional quality。
+- Selection / storage：`lib/frame-selection.ts` 依 front/left/rear/right 分組，每組均勻抽樣，通常選 16 張；`MemoryFrameStore` 最多保留 80 張暫存，淘汰時保留各方向。未選用的 Blob URL 立即 revoke；選定影格留到報告／開發預覽，按「完成還車」、開始新檢查或 provider 卸載後清除。中途離開掃描或切換模式會清除未完成影格；canvas 非同步結果若晚到，直接 revoke。
 - AI：UI 只透過 `services/inspection-service.ts` 操作。詳見 [API contract](docs/API_CONTRACT.md) 與 [AI team quick guide](docs/AI_INTEGRATION_GUIDE.md)。未新增 AI 模型、Python 套件或 3D 引擎。
 - 車輛資料與車損資訊從共用型別、資料、service 與 context 取得。Unknown 漏掃區域獨立於 no_damage；車損類型、部位與影像 URL 皆由結果提供。車體示意圖目前只校準左前車門定位，其他部位仍需擴充。
 
@@ -69,7 +70,7 @@ NEXT_PUBLIC_AI_API_URL=http://localhost:8000
 
 HTTP adapter 提供 15 秒 request timeout、回應 JSON/schema 驗證與繁體中文安全錯誤。分析頁先上傳 → complete → 輪詢（API 每約 1 秒，最長等待 120 秒）→ 取得結果，再按 detectionStatus 導頁。失敗後本頁保留影格供重試，service 共用成功或進行中的上傳與 complete，避免 Strict Mode 或重試重複提交；重新整理會清除記憶體。
 
-開發環境提供可摺疊 API Debug：session ID、MOCK/API、status、frame count、coverage、processing status、raw result JSON。AI Result scenario 選項也僅在 development 顯示，production 不顯示除錯面板。
+開發環境提供可摺疊 API Debug：session ID、MOCK/API、相機模式、已擷取／保留影格數、coverage、processing status、raw result JSON，以及 Key Frames 縮圖。AI Result scenario 選項也僅在 development 顯示，production 不顯示除錯面板。
 
 ## Local Development
 
@@ -91,33 +92,52 @@ npm start
 npm run format
 ```
 
+## Mobile Camera Testing
+
+相機需要安全來源：localhost 或 HTTPS（[MDN getUserMedia](https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia)）。電腦的 localhost 並不是手機的 localhost；手機開啟 `http://192.168.x.x:3000` 一般不能使用相機，Demo 模式仍可使用。
+
+建議測試流程：
+
+1. 若使用 Vercel，將此分支部署成 Preview deployment，取得 HTTPS 網址（也可使用其他 HTTPS hosting）。本次未自動部署。
+2. 在手機 Safari / Chrome 開啟 HTTPS 網址，經 `/return → /scan-guide → /scan`。
+3. 選「真實相機」，確認隱私提示，按「開始真實掃描」，允許相機權限。後鏡頭為 ideal environment，裝置仍可能選擇其他可用鏡頭。
+4. 手機直立，依車頭 → 左側 → 車尾 → 右側指引慢慢拍攝。預覽用 `<video playsInline muted autoPlay>`；橫向只顯示建議，不鎖定方向。
+5. Prototype 時間引導約 24 秒，最多自動走到 95%。只有至少 12 張有效影格且有四個估計方向時才能按「完成掃描」；不會只因時間到了自動結束。方位與進度不是 AI 車身覆蓋判定。
+6. 按完成後關閉相機，分組選出最多 16 張，繼續原本 `/analyzing → /damage 或 /result`。預設 Mock AI 不會傳送相機影像，也不分析照片內容。
+7. 在 development 的 API Debug 展開 Key Frames，核對縮圖與時間。production 沒有此面板；按「完成還車」清除本機影格。
+8. 切到背景、離開掃描頁、切回 Demo、拒絕權限、關閉裝置鏡頭等情境都應停止 tracks。若權限被拒絕，可修改瀏覽器設定後重試，或選「改用 Demo 模式」。
+
+亮度只使用 32×32 canvas 的平均 luminance（0–1），低於 0.15 提示較暗；blurScore、vehicleCoverage 尚未計算。沒有實作車損、車體部位、OCR 或其他 AI 判斷。
+
+單元測試使用模擬 MediaStream / canvas，不會打開電腦鏡頭。尚需實際 iOS Safari / Android 裝置驗證相機選擇、permission／playback、背景切換與長時間拍攝；內建瀏覽器的 UI smoke test 不代表實機驗證。
+
 ## Routes
 
-| Route         | Purpose                                      |
-| ------------- | -------------------------------------------- |
-| `/`           | Hackathon Demo 首頁                          |
-| `/return`     | 還車入口與車輛資訊                           |
-| `/scan-guide` | 掃描前指引                                   |
-| `/scan`       | 模擬攝影機、掃描驗證、覆蓋率與 Demo Controls |
-| `/analyzing`  | API 輪詢、分析進度、失敗重試                 |
-| `/damage`     | 中性疑似異常提示及模擬補拍                   |
-| `/result`     | 摘要、影像比較、報告、完成還車               |
-| `/dashboard`  | 模擬 KPI、圖表與可篩選實驗表格               |
+| Route         | Purpose                            |
+| ------------- | ---------------------------------- |
+| `/`           | Hackathon Demo 首頁                |
+| `/return`     | 還車入口與車輛資訊                 |
+| `/scan-guide` | 掃描前指引                         |
+| `/scan`       | Demo／真實相機、擷取計數與拍攝指引 |
+| `/analyzing`  | API 輪詢、分析進度、失敗重試       |
+| `/damage`     | 中性疑似異常提示及模擬補拍         |
+| `/result`     | 摘要、影像比較、報告、完成還車     |
+| `/dashboard`  | 模擬 KPI、圖表與可篩選實驗表格     |
 
 ## Project Structure
 
 ```text
 app/                   # existing routes, layout, globals
-components/camera/     # default mock wrapper, disabled real camera placeholder
+components/camera/     # mode wrapper, live video preview, mock preview
 components/dev/        # development-only ApiDebugPanel
 components/inspection/ # shared context, analysis, result, comparison, recapture
 components/scan/       # original scan UI and simulation hook
 components/vehicle/    # shared vehicle data and illustration
 services/              # service, mock/HTTP adapters, errors, response validation
-lib/                   # shared demo data, labels, frame selection
-types/                # inspection and CapturedFrame contracts
-tests/                # Node built-in contract/adapter tests; no test dependencies
-docs/                 # API contract and practical AI integration guide
+lib/                   # camera lifecycle/capture, frame store/selection, shared data
+types/                 # camera, inspection and CapturedFrame contracts
+tests/                 # Node built-in camera/contract tests; no extra dependencies
+docs/                  # API contract and practical AI integration guide
 public/mock/           # SVG placeholders, never real damage evidence
 ```
 
@@ -135,7 +155,7 @@ InspectionStatus：idle / scanning / uploading / processing / completed / failed
 
 無車損直接前往 `/result`，顯示「未偵測到明顯新增車損」，不顯示 DamageCard。missingAreas 顯示「部分區域未完整掃描 · Unknown」與部位名稱；若同時 no_damage，會註明無車損結論只適用已充分掃描區域。
 
-`npm test` 驗證三種 mock scenario、重試/重複提交、影格抽樣、五個 HTTP endpoints、multipart 對齊、null URL normalization、結果 schema、網路/HTTP/JSON/timeout 錯誤。使用 Node 內建 test runner，不需要 AI server。
+`npm test` 驗證相機請求共用、晚到 MediaStream 停止、權限失敗／重試、resize / JPEG 擷取、曝光 metadata、各方向抽樣、記憶體清理與三種 mock scenario、重試/重複提交、影格抽樣、五個 HTTP endpoints、multipart 對齊、null URL normalization、結果 schema、網路/HTTP/JSON/timeout 錯誤。使用 Node 內建 test runner，不需要 AI server。
 
 ## Hackathon Notes
 
