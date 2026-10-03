@@ -10,7 +10,7 @@ UI → InspectionService → Mock / HTTP adapter → AI backend。契約不依�
 
 ## Common conventions
 
-Base URL 使用 `NEXT_PUBLIC_AI_API_URL`，例如 `http://localhost:8000`；下列路徑皆附加到 base URL。開發 HTTP stub base 是 `http://localhost:3000/api/dev`。
+Base URL 使用 `NEXT_PUBLIC_AI_API_URL`，例如 `http://localhost:8000`；下列路徑皆附加到 base URL。開發 HTTP stub base 是 `/api/dev`。
 
 - JSON camelCase；`inspectionId` 非空，前端會 URL encode。
 - `confidence`、`coverage` 為 0–1；`progress` 為 0–100。

@@ -80,7 +80,7 @@ GET 最多重試兩次，POST 不自動 replay。upload 允許使用者用**同�
 
 一般請求逾時 15 秒；upload 30 秒；status/result/health GET 10 秒。輪詢約每秒一次，總等待 60 秒（含 request 與 retry），逾時保留 id 可重新取結果。結果與影像需要維持足夠保存期供刷新恢復；Reset Session 只清前端，不刪後端。
 
-依 [FastAPI CORS 官方文件](https://fastapi.tiangolo.com/tutorial/cors/) 允許 http://localhost:3000 與實際前端 HTTPS origin、GET/POST、Content-Type / OPTIONS。圖片 URL 也須在 HTTPS 頁面可載入。手機 localhost 指手機自身，不能指向開發電腦；提供手機可達 HTTPS backend。
+依 [FastAPI CORS 官方文件](https://fastapi.tiangolo.com/tutorial/cors/) 允許 http://localhost:3001 與實際前端 HTTPS origin、GET/POST、Content-Type / OPTIONS。圖片 URL 也須在 HTTPS 頁面可載入。手機 localhost 指手機自身，不能指向開發電腦；提供手機可達 HTTPS backend。
 
 ## Frontend connection
 

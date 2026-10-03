@@ -49,6 +49,7 @@ export function useVehicleScan() {
   const run = useRef(0);
   const mounted = useRef(true);
   const committed = useRef(false);
+  const uploadRun = useRef<number | null>(null);
   const started = useRef(0);
   const scanDuration = useRef(0);
   const activeMode = useRef<CameraMode>("demo");
@@ -78,31 +79,36 @@ export function useVehicleScan() {
       if (!committed.current) clearFrames();
     };
   }, [clearTimers, clearFrames, cancelRun]);
-  const reset = useCallback(() => {
-    cancelRun();
-    clearTimers();
-    clearFrames();
-    committed.current = false;
-    updatePhase("idle");
-    setPrototypeProgress(0);
-    setSharedProgress(0);
-    setStatus("idle");
-    setCameraRequested(false);
-    setCameraState("idle");
-    setError("");
-  }, [
-    clearTimers,
-    clearFrames,
-    updatePhase,
-    setSharedProgress,
-    setStatus,
-    cancelRun,
-  ]);
+  const reset = useCallback(
+    (clearSharedState = true) => {
+      cancelRun();
+      clearTimers();
+      if (clearSharedState) clearFrames();
+      committed.current = false;
+      updatePhase("idle");
+      setPrototypeProgress(0);
+      if (clearSharedState) {
+        setSharedProgress(0);
+        setStatus("idle");
+      }
+      setCameraRequested(false);
+      setCameraState("idle");
+      setError("");
+    },
+    [
+      clearTimers,
+      clearFrames,
+      updatePhase,
+      setSharedProgress,
+      setStatus,
+      cancelRun,
+    ],
+  );
   const lastReset = useRef(resetVersion);
   useEffect(() => {
     if (lastReset.current !== resetVersion) {
       lastReset.current = resetVersion;
-      reset();
+      reset(false);
     }
   }, [resetVersion, reset]);
   const onFrameCapture = useCallback(
@@ -127,6 +133,8 @@ export function useVehicleScan() {
   }, []);
   const upload = useCallback(async () => {
     const token = run.current;
+    if (uploadRun.current === token) return;
+    uploadRun.current = token;
     controller.current = new AbortController();
     updatePhase("complete");
     setError("");
@@ -145,6 +153,8 @@ export function useVehicleScan() {
           : inspectionErrorMessage(error),
       );
       updatePhase("upload-error");
+    } finally {
+      if (uploadRun.current === token) uploadRun.current = null;
     }
   }, [prepareAnalysis, router, updatePhase]);
   const finish = useCallback(() => {

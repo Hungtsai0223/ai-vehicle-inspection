@@ -20,7 +20,13 @@ export type VehiclePart =
   | "unknown";
 export type ScanState =
   "good" | "too_close" | "too_far" | "blurry" | "too_fast" | "too_dark";
-export type Scenario = "potential_damage" | "no_damage" | "incomplete";
+export type Scenario =
+  | "potential_damage"
+  | "no_damage"
+  | "multiple_damage"
+  | "unknown_area"
+  | "backend_error"
+  | "incomplete";
 export interface Vehicle {
   id: string;
   model: string;

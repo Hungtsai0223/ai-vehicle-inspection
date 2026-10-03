@@ -67,3 +67,15 @@ Use HTTP local stub with `?failure=upload_failure`, `?result=result_timeout`, de
 - [ ] Full flow keyboard/390×844 portrait/844×390 landscape without horizontal overflow.
 
 No Playwright dependency was added: this repo uses built-in Node reliability tests and an interactive Codex IAB flow. Hardware camera checks remain manual.
+
+## Deployment + presentation rehearsal
+
+- [ ] `/demo` → 完整使用者流程、直接掃描、單處／無車損／多處／Unknown 結果、Dashboard 都可操作。
+- [ ] backend_error 不產生成功結果；使用者按「使用 Demo 結果繼續」才切換，頁面明確標示來源。
+- [ ] 結果捷徑／備援 refresh 仍是 Demo，不對真實後端查詢 presentation ID。
+- [ ] 「重新開始 Demo」回 /return，id/result/frames/Blob/processing 清空，重新整理不恢復上一輪。
+- [ ] Mock + production HTTP 的 Demo 開關符合部署用途；production 不顯示 Integration Debug 或 raw JSON。
+- [ ] 實驗表格的 real array 仍空；填入實際 ExperimentResult 後，只切換表格資料與來源標記，KPI 仍是 Mock。
+- [ ] 375×667、390×844、393×852、430×932、1440×900：無水平溢出，主要觸控目標至少約 44px。
+- [ ] iPhone notch/home indicator、安全區、收合／展開瀏覽器工具列、100dvh 高度與頁面捲動實機驗證。
+- [ ] 未知網址 →「找不到此頁面」→ 返回車況檢查；全域錯誤只顯示安全文案與重新整理／Demo 首頁。

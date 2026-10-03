@@ -43,6 +43,7 @@ export function IntegrationPanel() {
   const [resultMode, setResultMode] = useState("potential_damage");
   const [failure, setFailure] = useState("none");
   const abort = useRef<AbortController | null>(null);
+  const running = useRef(false);
   useEffect(() => () => abort.current?.abort(), []);
   const baseUrl = getApiBaseUrl();
   const stub = isDevelopmentStub(baseUrl);
@@ -55,6 +56,8 @@ export function IntegrationPanel() {
     return createInspectionService(new HttpInspectionApi(url.href), "API");
   }
   async function testHealth() {
+    if (running.current) return;
+    running.current = true;
     abort.current?.abort();
     const controller = new AbortController();
     abort.current = controller;
@@ -66,6 +69,7 @@ export function IntegrationPanel() {
     if (controller.signal.aborted) return;
     setHealth(state);
     setBusy(false);
+    running.current = false;
     setMessage(
       state === "reachable"
         ? "GET /health 成功，沒有建立 inspection。"
@@ -83,6 +87,8 @@ export function IntegrationPanel() {
       | "selected"
       | "503",
   ) {
+    if (running.current) return;
+    running.current = true;
     abort.current?.abort();
     const controller = new AbortController();
     abort.current = controller;
@@ -163,12 +169,14 @@ export function IntegrationPanel() {
       }
     } finally {
       generated.forEach(releaseFramePreview);
+      if (abort.current === controller) running.current = false;
       if (abort.current === controller && !controller.signal.aborted)
         setBusy(false);
     }
   }
   function reset() {
     abort.current?.abort();
+    running.current = false;
     ctx.resetInspection();
     setBusy(false);
     setMessage("本次 inspection session 與影格已清除。");

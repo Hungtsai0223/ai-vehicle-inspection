@@ -33,7 +33,7 @@ NEXT_PUBLIC_AI_API_URL=http://localhost:8000
 
 ```dotenv
 NEXT_PUBLIC_USE_MOCK_AI=false
-NEXT_PUBLIC_AI_API_URL=http://localhost:3000/api/dev
+NEXT_PUBLIC_AI_API_URL=/api/dev
 NEXT_PUBLIC_DEV_AI_RESULT=potential_damage
 ```
 
@@ -41,15 +41,15 @@ NEXT_PUBLIC_DEV_AI_RESULT=potential_damage
 
 開啟 /dev/integration，可測 Create、Connection、No Damage、Potential Damage，並選 processing_failure、result_timeout、incomplete、missing_images、multiple_damage、unknown_values、500、503、upload_failure。Test Health 只 GET /health，不建立紀錄；Test Create 會建立空紀錄；Test Frame Upload 不啟動分析。
 
-也可在 API URL 加 query，例如 `http://localhost:3000/api/dev?result=no_damage`、`?result=processing_failure`、`?failure=upload_failure`；query 將保留到每個 endpoint。upload_failure 在每筆 inspection 的首次上傳失敗，再按重試可成功。result query 優先於 NEXT_PUBLIC_DEV_AI_RESULT。
+也可在 API URL 加 query，例如 `/api/dev?result=no_damage`、`?result=processing_failure`、`?failure=upload_failure`；query 將保留到每個 endpoint。upload_failure 在每筆 inspection 的首次上傳失敗，再按重試可成功。result query 優先於 NEXT_PUBLIC_DEV_AI_RESULT。
 
 Stub 只在 NODE_ENV=development 接受請求；production /dev/integration 與 stub endpoints 都回 404。只保留最近 10 筆記憶體 session，TTL 15 分鐘，單批最多 20 張、單圖 2 MB、總 request 24 MB。重啟或 TTL 到期會遺失影像，圖片顯示 fallback；沒有 disk storage 或認證。這是開發 stub，不適用正式多程序環境。
 
 ## CORS
 
-若 FastAPI 在 `http://localhost:8000`，前端在 `http://localhost:3000`，兩者是不同 origin。**後端**須允許 frontend origin、GET/POST、Content-Type 以及 OPTIONS preflight。
+若 FastAPI 在 `http://localhost:8000`，前端在 `http://localhost:3001`，兩者是不同 origin。**後端**須允許 frontend origin、GET/POST、Content-Type 以及 OPTIONS preflight。
 
-依照 [FastAPI 官方 CORS 說明](https://fastapi.tiangolo.com/tutorial/cors/)，allow_origins 先包含 `http://localhost:3000`，之後加入實際部署的前端 HTTPS URL。若改用 127.0.0.1 或不同 port，必須一併設定對應 origin。此前端不放入 FastAPI 專用 CORS 程式碼。
+依照 [FastAPI 官方 CORS 說明](https://fastapi.tiangolo.com/tutorial/cors/)，allow_origins 先包含 `http://localhost:3001`，之後加入實際部署的前端 HTTPS URL。若改用 127.0.0.1 或不同 port，必須一併設定對應 origin。此前端不放入 FastAPI 專用 CORS 程式碼。
 
 手機無法透過自己的 localhost 連到電腦 backend；手機測試需要可到達的 HTTPS API URL，避免 HTTPS 前端呼叫 HTTP API 的 mixed content。詳見 README Mobile Camera Testing。
 

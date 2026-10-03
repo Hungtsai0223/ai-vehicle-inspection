@@ -8,15 +8,15 @@
 
 ## Problem
 
-逐張手動拍攝容易產生模糊、角度不正確、車身入鏡不完整與漏拍；營運團隊需要人工比對大量還車照片。
+現有共享汽車還車流程需要使用者逐張拍攝車輛照片，營運團隊再人工審閱大量影像。手動拍攝也容易產生模糊、角度不正確與漏拍。
 
 ## Proposed Solution
 
-使用者沿車輛走一圈，介面提示距離與影像品質，未來由模型自動擷取關鍵影格並比對租車前後影像。疑似異常以中性措辭提示，交由人工確認。
+使用者沿車輛走一圈，系統引導拍攝、擷取影格並選出關鍵影格，再透過可替換的 API 傳至 AI 模型，回傳疑似車損與比對影像供人工確認。目前 AI adapter 使用 Mock 或 HTTP 契約，真實模型由隊友串接。
 
 ## Demo Flow
 
-`/return → /scan-guide → /scan → /analyzing → /damage → /result`
+`/demo → /return → /scan-guide → /scan → /analyzing → /damage 或 /result → /dashboard`
 
 1. 開始模擬掃描，進度在約 8 秒內完成。
 2. 車頭、左側、車尾、右側每段約 2 秒，指引隨進度切換；100% 選出關鍵影格，顯示「正在準備 AI 分析」／「正在上傳關鍵影格」；成功上傳與 complete 後才進入分析。
@@ -30,11 +30,13 @@
 ## Architecture
 
 ```text
-Frontend (App Router + InspectionContext)
-    ↓ Inspection Service
-Mock / HTTP InspectionApi Adapter
-    ↓ /api/v1/inspections (API mode only)
-AI Backend (future)
+Mobile Camera / Demo Camera
+    ↓ Frame Capture (JPEG, 2 FPS)
+    ↓ Key Frame Selection (up to 16)
+Inspection Service
+    ↓ Replaceable Mock / HTTP API adapter
+AI Backend → Potential Damage Detection (pending teammate integration)
+    ↓ Result UI / Human Review
 ```
 
 Next.js 16.3.8、React 19.3、TypeScript、Tailwind CSS 4、Lucide React、Framer Motion。共用 CSS token 統一白底、紅色主色、綠色完成狀態、琥珀警告與元件尺寸。支援鍵盤焦點與 reduced-motion。
@@ -46,13 +48,14 @@ Next.js 16.3.8、React 19.3、TypeScript、Tailwind CSS 4、Lucide React、Frame
 | Frontend             | complete                           |
 | Mobile Camera        | prototype complete；實機驗證待進行 |
 | Key Frame Pipeline   | complete                           |
+| API Architecture     | complete                           |
 | Mock API             | complete                           |
 | HTTP Integration     | complete                           |
 | AI Backend           | pending teammate integration       |
 | 3D Model             | future enhancement                 |
 | Experimental Metrics | pending real experiment results    |
 
-沿用既有 UI。此版本完成 Integration Hardening + Mobile Deployment Readiness。
+沿用既有 UI。此版本完成 Deployment + Mobile Demo Readiness；新增展示入口與備援，保留原本 Mock / HTTP 流程。
 
 ## Current MVP
 
@@ -74,7 +77,9 @@ Next.js 16.3.8、React 19.3、TypeScript、Tailwind CSS 4、Lucide React、Frame
 
 ```dotenv
 NEXT_PUBLIC_USE_MOCK_AI=true
-NEXT_PUBLIC_AI_API_URL=http://localhost:3000/api/dev
+NEXT_PUBLIC_AI_API_URL=/api/dev
+NEXT_PUBLIC_DEMO_RESULT=potential_damage
+NEXT_PUBLIC_ENABLE_DEMO=true
 ```
 
 預設或 true 使用 Mock；只有明確設定 false 才使用 HTTP adapter。複製到 `.env.local` 後重啟 dev server，production 需重新 build。NEXT_PUBLIC 變數會公開，不可保存 API 密鑰。Mock create 延遲 300 ms、upload 500 ms、processing 約 3 秒，無需後端。
@@ -87,8 +92,8 @@ HTTP adapter 使用 fetchWithTimeout：一般請求 15 秒、影格上傳 30 秒
 
 ```dotenv
 NEXT_PUBLIC_USE_MOCK_AI=false
-NEXT_PUBLIC_AI_API_URL=http://localhost:3000/api/dev
-NEXT_PUBLIC_DEV_AI_RESULT=potential_damage
+NEXT_PUBLIC_AI_API_URL=/api/dev
+NEXT_PUBLIC_DEMO_RESULT=potential_damage
 ```
 
 設定 `.env.local` 並重啟 `npm run dev`。原 Demo scan 在此開發 stub 模式會產生明確標記 DEMO 的實際 JPEG Blob，經真正 multipart HTTP 請求傳送；真實相機也可沿用。Stub 處理約 3 秒，沒有 AI。
@@ -108,7 +113,7 @@ npm install
 npm run dev
 ```
 
-開啟 http://localhost:3000 。預設不需要 `.env`、攝影機權限或後端。
+也可用 `npm run dev -- --port 3001`。開啟終端列出的實際網址（例如 http://localhost:3001/demo）；stub 使用 `/api/dev`，換 port 不需改程式。預設不需要 `.env`、攝影機權限或後端。
 
 ```bash
 npm run lint
@@ -121,7 +126,7 @@ npm run format
 
 ## Mobile Camera Testing
 
-相機需要安全來源：localhost 或 HTTPS（[MDN getUserMedia](https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia)）。電腦的 localhost 並不是手機的 localhost；手機開啟 `http://192.168.x.x:3000` 一般不能使用相機，Demo 模式仍可使用。
+相機需要安全來源：localhost 或 HTTPS（[MDN getUserMedia](https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia)）。電腦的 localhost 並不是手機的 localhost；手機開啟 `http://192.168.x.x:3001` 一般不能使用相機，Demo 模式仍可使用。
 
 建議測試流程：
 
@@ -140,17 +145,18 @@ npm run format
 
 ## Routes
 
-| Route              | Purpose                            |
-| ------------------ | ---------------------------------- |
-| `/`                | Hackathon Demo 首頁                |
-| `/return`          | 還車入口與車輛資訊                 |
-| `/scan-guide`      | 掃描前指引                         |
-| `/scan`            | Demo／真實相機、擷取計數與拍攝指引 |
-| `/analyzing`       | API 輪詢、分析進度、失敗重試       |
-| `/damage`          | 中性疑似異常提示及模擬補拍         |
-| `/result`          | 摘要、影像比較、報告、完成還車     |
-| `/dev/integration` | development-only HTTP 測試頁       |
-| `/dashboard`       | 模擬 KPI、圖表與可篩選實驗表格     |
+| Route              | Purpose                                |
+| ------------------ | -------------------------------------- |
+| `/`                | Hackathon Demo 首頁                    |
+| `/demo`            | Hackathon 展示入口、情境捷徑與重新開始 |
+| `/return`          | 還車入口與車輛資訊                     |
+| `/scan-guide`      | 掃描前指引                             |
+| `/scan`            | Demo／真實相機、擷取計數與拍攝指引     |
+| `/analyzing`       | API 輪詢、分析進度、失敗重試           |
+| `/damage`          | 中性疑似異常提示及模擬補拍             |
+| `/result`          | 摘要、影像比較、報告、完成還車         |
+| `/dev/integration` | development-only HTTP 測試頁           |
+| `/dashboard`       | 模擬 KPI、圖表與可篩選實驗表格         |
 
 ## Project Structure
 
@@ -163,7 +169,8 @@ components/scan/       # original scan UI and simulation hook
 components/vehicle/    # shared vehicle data and illustration
 services/              # service, mock/HTTP adapters, errors, response validation
 lib/                   # camera lifecycle/capture, frame store/selection, shared data
-types/                 # camera, inspection and CapturedFrame contracts
+data/                  # labeled demo metrics and empty real experiment measurements
+types/                 # camera, inspection, CapturedFrame and ExperimentResult contracts
 tests/                 # Node built-in camera/contract tests; no extra dependencies
 docs/                  # API contract and practical AI integration guide
 public/mock/           # SVG placeholders, never real damage evidence
@@ -183,7 +190,7 @@ InspectionStatus：idle / scanning / uploading / processing / completed / failed
 
 無車損直接前往 `/result`，顯示「未偵測到明顯新增車損」，不顯示 DamageCard。missingAreas 顯示「部分區域未完整掃描 · Unknown」與部位名稱；若同時 no_damage，會註明無車損結論只適用已充分掃描區域。
 
-`npm test` 驗證相機請求共用、晚到 MediaStream 停止、權限失敗／重試、resize / JPEG 擷取、曝光 metadata、各方向抽樣、記憶體清理與三種 mock scenario、重試/重複提交、影格抽樣、五個 HTTP endpoints、multipart 對齊、null URL normalization、結果 schema、網路/HTTP/JSON/timeout 錯誤。使用 Node 內建 test runner，不需要 AI server；另含原生 HTTP multipart roundtrip、stub 分流／錯誤、輪詢取消及 session fallback 測試。
+`npm test` 驗證相機請求共用、晚到 MediaStream 停止、權限失敗／重試、resize / JPEG 擷取、曝光 metadata、各方向抽樣、記憶體清理、集中 Demo 情境（多處車損、Unknown、後端失敗）、重試/重複提交、影格抽樣、五個 HTTP endpoints、multipart 對齊、null URL normalization、結果 schema、網路/HTTP/JSON/timeout 錯誤。使用 Node 內建 test runner，不需要 AI server；另含原生 HTTP multipart roundtrip、stub 分流／錯誤、輪詢取消及 session fallback 測試。
 
 ## Hackathon Notes
 
@@ -193,10 +200,10 @@ AI 僅協助篩選疑似異常，不直接作為責任判定依據。
 
 ## Environment Presets
 
-| Preset                   | USE_MOCK_AI | AI_API_URL                                     | DEV_AI_RESULT                   |
+| Preset                   | USE_MOCK_AI | AI_API_URL                                     | DEMO_RESULT                     |
 | ------------------------ | ----------- | ---------------------------------------------- | ------------------------------- |
-| LOCAL DEMO / Vercel demo | true        | 可省略                                         | 可省略                          |
-| HTTP DEV STUB            | false       | http://localhost:3000/api/dev                  | potential_damage 或其他開發情境 |
+| LOCAL DEMO / Vercel demo | true        | 可省略                                         | potential_damage 或展示情境     |
+| HTTP DEV STUB            | false       | /api/dev                                       | potential_damage 或其他開發情境 |
 | REAL AI BACKEND          | false       | https://example-ai-backend.com（換成團隊 URL） | 可省略                          |
 
 設定 `.env.local` 後重啟；Vercel NEXT_PUBLIC 設定變更後重新部署/build。正常 UI 不顯示後端連線指標；Backend Connected / Backend Unreachable / Mock Mode 只在開發測試頁使用。
@@ -205,7 +212,7 @@ AI 僅協助篩選疑似異常，不直接作為責任判定依據。
 
 使用 Next.js preset，Root Directory 設為本專案目錄，Install `npm ci`，Build `npm run build`，不用 static export、額外 server 或 vercel.json。
 
-Vercel Preview/Production 環境變數：`NEXT_PUBLIC_USE_MOCK_AI`、`NEXT_PUBLIC_AI_API_URL`、`NEXT_PUBLIC_DEV_AI_RESULT`（只限本機 development stub，正式部署可省略）。第一版 Hackathon demo 設 Mock=true；接真實 backend 時改 false + 可由手機到達的 HTTPS API URL，再重新部署。後端 CORS 必須允許實際前端 HTTPS origin，圖片也須 HTTPS。不要在部署設定使用 localhost 或本機 /api/dev：production stub 與 /dev/integration 都回 404。
+Vercel Preview/Production 環境變數：`NEXT_PUBLIC_USE_MOCK_AI`、`NEXT_PUBLIC_AI_API_URL`、`NEXT_PUBLIC_DEMO_RESULT`（預設 potential_damage）、`NEXT_PUBLIC_ENABLE_DEMO`（HTTP 展示才設 true）；舊 `NEXT_PUBLIC_DEV_AI_RESULT` 只限 development stub，正式部署可省略。第一版 Hackathon demo 設 Mock=true；接真實 backend 時改 false + 可由手機到達的 HTTPS API URL，再重新部署。後端 CORS 必須允許實際前端 HTTPS origin，圖片也須 HTTPS。不要在部署設定使用 localhost 或本機 /api/dev：production stub 與 /dev/integration 都回 404。
 
 本機 build/start 驗證部署相容性，但不等於已部署。本專案未連結 `.vercel` project，未自動部署。平台配置依 [Vercel Next.js](https://vercel.com/docs/frameworks/full-stack/nextjs) 與 [environment variables](https://vercel.com/docs/environment-variables) 官方文件。
 
@@ -228,3 +235,21 @@ git remote add origin <repository-url>
 git branch -M main
 git push -u origin main
 ```
+
+## Presentation Entry and Demo Configuration
+
+評審或展示者先開 `/demo`；想直接走還車流程可開 `/return`。`/scan` 是相機或 Demo 掃描；`/dashboard` 展示明確標示的模擬 KPI 與實驗表格。`/dev/integration` 僅 development 可使用，production 回 404，/demo 不提供 raw API URL、ID、JSON 或環境細節。
+
+`NEXT_PUBLIC_DEMO_RESULT` 集中於 `lib/demo-config.ts`，支援 potential_damage、no_damage、multiple_damage、unknown_area、backend_error。Mock 完整流程會使用設定值；HTTP dev stub 會對應為既有情境（unknown_area→incomplete、backend_error→processing_failure）。顯式 query 或舊 NEXT_PUBLIC_DEV_AI_RESULT 優先；真實 backend 不受此設定操控。環境變數更新需重新啟動 dev 或重新 build/deploy。
+
+/demo 提供直接展示單處、無車損、多處、覆蓋不足的捷徑，完全不發出 API 請求。後端失敗演練只在 Mock 可用：走完整流程後顯示錯誤，再由展示者按「使用 Demo 結果繼續」。不會自動偽造成功，備援頁明確標示 Demo Mode、未分析本次拍攝影像。正式版 HTTP 預設不提供 Demo 結果；若是 Hackathon 展示部署，明確設定 NEXT_PUBLIC_ENABLE_DEMO=true。實際服務設 false，Mock=true 時仍屬展示環境。
+
+「重新開始 Demo」清掉此專案的 context/sessionStorage key、影格、selected frames、Blob URL、結果與處理狀態，再回 /return。結果捷徑只保存輕量情境標記，刷新後在本機重建 Demo 結果；沒有將模擬結果 ID 送到真實 backend。未上傳的照片仍不能跨 refresh 恢復。
+
+## Experiment Data Handoff
+
+`data/demo-metrics.ts` 保存所有示範 KPI、辨識率、效率與示範實驗列；`data/experiment-results.ts` 的 realExperimentResults 目前為空。隊友只需填入符合 `types/experiment.ts` 的 ExperimentResult[]，Dashboard 實驗表格會使用真實列並標示 REAL EXPERIMENT DATA，既有 KPI/圖表仍清楚標示 Mock，不會由少量實驗推導準確率。表格篩選選項由傳入資料產生。
+
+before/after/mask 是專案自製的中性抽象 SVG，圖中與 UI 都標示 Demo Image，不是 AI 推論或真實車損證據。相機沿用最長邊 1280 px、JPEG quality 0.8；刮痕細節與實際 bytes/image 仍需手機驗證。
+
+展示講稿：[DEMO_SCRIPT](docs/DEMO_SCRIPT.md)。AI 接線確認：[AI_TEAM_CHECKLIST](docs/AI_TEAM_CHECKLIST.md) 與 [AI_BACKEND_HANDOFF](docs/AI_BACKEND_HANDOFF.md)。

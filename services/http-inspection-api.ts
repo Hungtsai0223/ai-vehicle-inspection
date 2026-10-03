@@ -24,6 +24,7 @@ import {
 } from "../lib/api-config";
 import { fetchWithTimeout } from "./fetch-with-timeout";
 import { validateUploadFrames } from "../lib/frame-upload-validation";
+import { demoStubResult } from "../lib/demo-config";
 export class HttpInspectionApi implements InspectionApi {
   private readonly metadata = new Map<
     string,
@@ -44,7 +45,7 @@ export class HttpInspectionApi implements InspectionApi {
     )
       url.searchParams.set(
         "result",
-        process.env.NEXT_PUBLIC_DEV_AI_RESULT ?? "potential_damage",
+        process.env.NEXT_PUBLIC_DEV_AI_RESULT ?? demoStubResult(),
       );
     return url.href;
   }

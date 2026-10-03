@@ -1,4 +1,6 @@
 import type { InspectionResult, Scenario } from "../types/inspection";
+import { getDemoScenario } from "./demo-config";
+import { InspectionApiError } from "../services/inspection-errors";
 // MOCK / DEMO DATA — not measured experiment results.
 export const mockVehicle = {
   id: "vehicle_001",
@@ -6,7 +8,7 @@ export const mockVehicle = {
   plate: "RAC-2026",
 };
 export const mockConfig = {
-  defaultScenario: "potential_damage" as Scenario,
+  defaultScenario: getDemoScenario() as Scenario,
   scanDurationMs: 8_000,
   scanCompleteDelayMs: 800,
   analysisDurationMs: 3_000,
@@ -43,64 +45,38 @@ export function resultFor(
   scenario: Scenario,
   id = "demo_2026",
 ): InspectionResult {
+  if (scenario === "backend_error")
+    throw new InspectionApiError("PROCESSING_FAILED");
+  const unknown = scenario === "incomplete" || scenario === "unknown_area";
+  const multiple = scenario === "multiple_damage";
   return {
     ...mockResult,
     inspectionId: id,
-    coverage: scenario === "incomplete" ? 0.75 : 0.96,
+    coverage: unknown ? 0.75 : multiple ? 0.94 : 0.96,
+    scanDurationSeconds: multiple ? 26.8 : mockResult.scanDurationSeconds,
+    processingTimeSeconds: multiple ? 2.7 : mockResult.processingTimeSeconds,
     detectionStatus:
       scenario === "no_damage" ? "no_damage" : "potential_damage",
-    missingAreas: scenario === "incomplete" ? ["right_rear_door"] : [],
-    damages: scenario === "no_damage" ? [] : mockResult.damages,
+    missingAreas: unknown ? ["right_rear_door"] : [],
+    damages:
+      scenario === "no_damage"
+        ? []
+        : [
+            ...mockResult.damages.map((damage) => ({ ...damage })),
+            ...(multiple
+              ? [
+                  {
+                    id: "damage_002",
+                    part: "rear_bumper" as const,
+                    damageType: "dent" as const,
+                    confidence: 0.84,
+                    isPotentialNewDamage: true,
+                    beforeImageUrl: "/mock/before.svg",
+                    afterImageUrl: "/mock/after.svg",
+                    maskImageUrl: "/mock/mask.svg",
+                  },
+                ]
+              : []),
+          ],
   };
 }
-export const metrics = [
-  ["Recognition Accuracy", "94.2%"],
-  ["Average AI Detection Time", "2.8 sec"],
-  ["Complete Inspection Time", "28.6 sec"],
-  ["Scan Coverage", "96%"],
-  ["Potential Damage", "1"],
-];
-export const accuracy = [
-  ["Scratch", 96],
-  ["Dent", 91],
-  ["Paint Damage", 93],
-  ["Contamination", 89],
-] as const;
-export const experiments = [
-  {
-    id: "#01",
-    distance: "1.0 m",
-    angle: "0°",
-    lighting: "Daylight",
-    damage: "Scratch",
-    confidence: 96,
-    result: "Detected",
-  },
-  {
-    id: "#02",
-    distance: "2.0 m",
-    angle: "30°",
-    lighting: "Daylight",
-    damage: "Dent",
-    confidence: 91,
-    result: "Detected",
-  },
-  {
-    id: "#03",
-    distance: "1.5 m",
-    angle: "45°",
-    lighting: "Low Light",
-    damage: "Scratch",
-    confidence: 85,
-    result: "Detected",
-  },
-  {
-    id: "#04",
-    distance: "3.0 m",
-    angle: "60°",
-    lighting: "Low Light",
-    damage: "Scratch",
-    confidence: 54,
-    result: "Missed",
-  },
-];

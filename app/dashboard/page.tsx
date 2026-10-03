@@ -4,9 +4,20 @@ import {
   ExperimentTable,
 } from "@/components/dashboard/dashboard-components";
 import { PerformanceBar } from "@/components/dashboard/performance-bar";
-import { metrics, accuracy } from "@/lib/mock-data";
+import {
+  demoMetrics,
+  demoAccuracy,
+  demoEfficiency,
+  demoExperimentResults,
+} from "@/data/demo-metrics";
+import { realExperimentResults } from "@/data/experiment-results";
 import { Card, Action } from "@/components/ui/primitives";
 export default function Dashboard() {
+  const real = realExperimentResults.length > 0;
+  const reduction = Math.round(
+    (1 - demoEfficiency.guidedSeconds / demoEfficiency.traditionalSeconds) *
+      100,
+  );
   return (
     <div className="dashboard-page">
       <div className="dashboard-heading">
@@ -19,11 +30,12 @@ export default function Dashboard() {
         <span className="demo-label">DEMO / MOCK DATA</span>
       </div>
       <div className="mock-notice">
-        以下數據皆為 MOCK / DEMO DATA，非實測結果，不代表 AI 模型效能。
+        績效卡片與圖表皆為 MOCK / DEMO DATA，非實測結果，不代表 AI
+        模型效能。實驗表格另標示資料來源。
       </div>
       <h2 className="metrics-heading">Prototype Metrics — Mock Data</h2>
       <div className="metrics">
-        {metrics.map(([label, value]) => (
+        {demoMetrics.map(([label, value]) => (
           <MetricCard key={label} label={label} value={value} />
         ))}
       </div>
@@ -35,7 +47,7 @@ export default function Dashboard() {
           </div>
           <p>各車損類型辨識率 · 模擬</p>
           <div className="accuracy-bars">
-            {accuracy.map(([name, value]) => (
+            {demoAccuracy.map(([name, value]) => (
               <PerformanceBar key={name} label={name} value={value} />
             ))}
           </div>
@@ -49,18 +61,23 @@ export default function Dashboard() {
           <div className="time-chart">
             <div>
               <span>Traditional Photo Process</span>
-              <strong>78 sec</strong>
+              <strong>{demoEfficiency.traditionalSeconds} sec</strong>
               <div style={{ width: "100%" }} />
             </div>
             <div>
               <span>AI Guided Scan</span>
-              <strong>28.6 sec</strong>
-              <div className="ai-bar" style={{ width: "36.7%" }} />
+              <strong>{demoEfficiency.guidedSeconds} sec</strong>
+              <div
+                className="ai-bar"
+                style={{
+                  width: `${(demoEfficiency.guidedSeconds / demoEfficiency.traditionalSeconds) * 100}%`,
+                }}
+              />
             </div>
           </div>
           <div className="reduction">
             <ArrowUpRight size={25} />
-            <strong>63%</strong>
+            <strong>{reduction}%</strong>
             <span>
               Time Reduction
               <br />
@@ -69,7 +86,15 @@ export default function Dashboard() {
           </div>
         </Card>
       </div>
-      <ExperimentTable />
+      <ExperimentTable
+        results={real ? realExperimentResults : demoExperimentResults}
+        source={real ? "real" : "demo"}
+      />
+      {!real && (
+        <p className="notice">
+          真實實驗資料尚未提供，待 3D 列印車損實驗完成後填入量測結果。
+        </p>
+      )}
       <div className="dashboard-bottom">
         <p>
           Frontend → Inspection Service → API Adapter → AI Backend

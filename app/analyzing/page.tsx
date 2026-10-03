@@ -13,6 +13,7 @@ import {
 } from "@/services/inspection-service";
 import { pollInspection } from "@/services/poll-inspection";
 import { Action, Button, DemoLabel } from "@/components/ui/primitives";
+import { DemoRecovery } from "@/components/inspection/demo-recovery";
 export default function Analyzing() {
   const {
     inspectionId,
@@ -165,6 +166,7 @@ export default function Analyzing() {
           >
             重新取得結果
           </Button>
+          <DemoRecovery />
         </>
       )}
     </div>

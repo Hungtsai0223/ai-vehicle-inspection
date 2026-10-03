@@ -16,6 +16,8 @@ import {
   DemoLabel,
 } from "@/components/ui/primitives";
 import { useResultRecovery } from "@/components/inspection/use-result-recovery";
+import { DemoReset } from "@/components/inspection/demo-reset";
+import { DemoRecovery } from "@/components/inspection/demo-recovery";
 export default function Result() {
   const {
     result,
@@ -26,8 +28,10 @@ export default function Result() {
     usingDevStub,
     cameraMode,
     clearFrames,
+    demoResultActive,
   } = useInspection();
   const [finished, setFinished] = useState(false);
+  const finishing = useRef(false);
   const [selected, setSelected] = useState<string>();
   const refs = useRef<Record<string, HTMLElement | null>>({});
   const reduced = useReducedMotion();
@@ -40,7 +44,10 @@ export default function Result() {
           {recovery.error || "正在重新取得分析結果…"}
         </p>
         {recovery.error && (
-          <Button onClick={recovery.retry}>重新取得結果</Button>
+          <>
+            <Button onClick={recovery.retry}>重新取得結果</Button>
+            <DemoRecovery />
+          </>
         )}
       </div>
     );
@@ -77,7 +84,12 @@ export default function Result() {
           </p>
         </div>
       </div>
-      {(mode === "MOCK" || usingDevStub) && <DemoLabel />}
+      {(mode === "MOCK" || usingDevStub || demoResultActive) && <DemoLabel />}
+      {demoResultActive && (
+        <p className="notice" role="status">
+          Demo Mode · 展示結果，未分析本次拍攝影像。
+        </p>
+      )}
       <VehicleCard />
       <VehicleDamageMap
         vehicleParts={result.damages.map((d) => d.part)}
@@ -102,7 +114,11 @@ export default function Result() {
         <DamageCard
           key={d.id}
           damage={d}
-          isDemo={mode === "MOCK" || (usingDevStub && cameraMode === "demo")}
+          isDemo={
+            demoResultActive ||
+            mode === "MOCK" ||
+            (usingDevStub && cameraMode === "demo")
+          }
           selected={selected === d.id}
           ref={(el) => {
             refs.current[d.id] = el;
@@ -118,6 +134,9 @@ export default function Result() {
           )}
         </Card>
       )}
+      {result.detectionStatus === "potential_damage" && (
+        <p className="notice">偵測到疑似新增車損，請交由人工確認。</p>
+      )}
       {recaptured && (
         <p className="success-text">
           <Check size={16} />
@@ -127,6 +146,8 @@ export default function Result() {
       <Disclaimer />
       <Button
         onClick={() => {
+          if (finishing.current) return;
+          finishing.current = true;
           clearFrames();
           setFinished(true);
         }}
@@ -142,6 +163,7 @@ export default function Result() {
       <Action href="/dashboard" secondary>
         查看完整檢測報告
       </Action>
+      <DemoReset />
       {finished && (
         <Action href="/" secondary>
           返回 Demo 首頁

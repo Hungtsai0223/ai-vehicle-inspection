@@ -1,5 +1,6 @@
 import type { CameraMode } from "../types/camera";
 import type { InspectionStatus, Scenario, Vehicle } from "../types/inspection";
+import { isScenario, type DemoResultScenario } from "./demo-config";
 export const sessionStorageKey = "vehicle-inspection-session-v1";
 export interface SavedInspectionSession {
   version: 1;
@@ -14,6 +15,8 @@ export interface SavedInspectionSession {
   status: InspectionStatus;
   uploadComplete: boolean;
   scenario: Scenario;
+  /** Explicit launcher/fallback result, regenerated locally after refresh. No image bytes. */
+  demoResultScenario?: DemoResultScenario;
 }
 export function readInspectionSession(
   mode: SavedInspectionSession["mode"],
@@ -46,7 +49,12 @@ export function readInspectionSession(
         "failed",
       ].includes(s.status) ||
       !["demo", "real"].includes(s.cameraMode) ||
-      !["potential_damage", "no_damage", "incomplete"].includes(s.scenario) ||
+      !isScenario(s.scenario) ||
+      (s.demoResultScenario !== undefined &&
+        (!isScenario(s.demoResultScenario) ||
+          s.demoResultScenario === "backend_error" ||
+          s.status !== "completed" ||
+          !s.uploadComplete)) ||
       typeof s.uploadComplete !== "boolean"
     )
       return null;
@@ -67,6 +75,9 @@ export function readInspectionSession(
       status: s.status,
       uploadComplete: s.uploadComplete,
       scenario: s.scenario,
+      ...(s.demoResultScenario
+        ? { demoResultScenario: s.demoResultScenario }
+        : {}),
     };
   } catch {
     return null;

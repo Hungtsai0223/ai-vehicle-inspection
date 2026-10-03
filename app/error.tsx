@@ -1,11 +1,14 @@
 "use client";
-import { Button } from "@/components/ui/primitives";
-export default function Error({ reset }: { reset: () => void }) {
+import { Action, Button } from "@/components/ui/primitives";
+export default function Error() {
   return (
     <div className="page">
-      <h1>暫時無法載入</h1>
-      <p className="lead">請重新嘗試。</p>
-      <Button onClick={reset}>重新載入</Button>
+      <h1>系統暫時發生問題</h1>
+      <p className="lead">請重新整理，或返回展示入口再試一次。</p>
+      <Button onClick={() => window.location.reload()}>重新整理</Button>
+      <Action href="/demo" secondary>
+        返回 Demo 首頁
+      </Action>
     </div>
   );
 }

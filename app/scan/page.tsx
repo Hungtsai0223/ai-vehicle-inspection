@@ -13,6 +13,7 @@ import { useInspection } from "@/components/inspection/inspection-context";
 import { getPreferredCameraMode } from "@/lib/camera-access";
 import type { CameraMode } from "@/types/camera";
 import type { ScanState } from "@/types/inspection";
+import { DemoRecovery } from "@/components/inspection/demo-recovery";
 const subscribe = () => () => {};
 const serverMode = (): CameraMode => "demo";
 export default function Scan() {
@@ -124,7 +125,7 @@ export default function Scan() {
           incomplete={
             mode === "demo" &&
             ctx.mode === "MOCK" &&
-            ctx.scenario === "incomplete"
+            (ctx.scenario === "incomplete" || ctx.scenario === "unknown_area")
           }
           prototype={mode === "real"}
         />
@@ -146,7 +147,8 @@ export default function Scan() {
         )}
         {mode === "demo" &&
           ctx.mode === "MOCK" &&
-          ctx.scenario === "incomplete" && (
+          (ctx.scenario === "incomplete" ||
+            ctx.scenario === "unknown_area") && (
             <p className="notice">
               右側車身未完整掃描 · Unknown
               <small>仍可完成檢查，交由後續人工確認。</small>
@@ -163,6 +165,21 @@ export default function Scan() {
             {scan.error}
           </p>
         )}
+        {scan.error &&
+          mode === "real" &&
+          scan.cameraState !== "idle" &&
+          scan.cameraState !== "permission_granted" && (
+            <div className="camera-fallback" role="status">
+              <p>相機目前無法啟用</p>
+              <Button className="secondary" onClick={() => changeMode("demo")}>
+                改用 Demo 模式
+              </Button>
+            </div>
+          )}
+        {scan.error &&
+          (scan.phase === "upload-error" || ctx.status === "failed") && (
+            <DemoRecovery />
+          )}
         <Button
           onClick={primaryAction}
           disabled={

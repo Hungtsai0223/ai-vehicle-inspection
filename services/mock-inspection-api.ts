@@ -72,6 +72,11 @@ export class MockInspectionApi implements InspectionApi {
   async getInspectionStatus(id: string): Promise<InspectionProgress> {
     await wait(this.timings.request);
     const session = this.session(id);
+    if (
+      session.scenario === "backend_error" &&
+      session.processingStarted !== undefined
+    )
+      throw new InspectionApiError("PROCESSING_FAILED", "Demo backend failure");
     const progress =
       session.processingStarted === undefined
         ? 0

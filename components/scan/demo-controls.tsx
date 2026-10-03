@@ -1,6 +1,7 @@
 "use client";
 import type { ScanState, Scenario } from "@/types/inspection";
 import { DemoLabel } from "@/components/ui/primitives";
+import { demoScenarios } from "@/lib/demo-config";
 const controls = [
   ["Normal", "good"],
   ["Too Close", "too_close"],
@@ -51,8 +52,11 @@ export function DemoControls({
             disabled={disabled}
             onChange={(e) => onScenarioChange(e.target.value as Scenario)}
           >
-            <option value="potential_damage">Potential Damage</option>
-            <option value="no_damage">No Damage · 無異常</option>
+            {demoScenarios.map(({ value, label }) => (
+              <option value={value} key={value}>
+                {label}
+              </option>
+            ))}
             <option value="incomplete">覆蓋不足 · Unknown</option>
           </select>
         </label>

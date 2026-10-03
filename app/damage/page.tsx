@@ -19,6 +19,7 @@ import {
   DemoLabel,
 } from "@/components/ui/primitives";
 import { useResultRecovery } from "@/components/inspection/use-result-recovery";
+import { DemoRecovery } from "@/components/inspection/demo-recovery";
 export default function Damage() {
   const {
     result,
@@ -29,6 +30,7 @@ export default function Damage() {
     cameraMode,
     setRecaptured,
     setStatus,
+    demoResultActive,
   } = useInspection();
   const router = useRouter();
   const [selectedId, setSelectedId] = useState("");
@@ -47,7 +49,10 @@ export default function Damage() {
           {recovery.error || "正在重新取得分析結果…"}
         </p>
         {recovery.error && (
-          <Button onClick={recovery.retry}>重新取得結果</Button>
+          <>
+            <Button onClick={recovery.retry}>重新取得結果</Button>
+            <DemoRecovery />
+          </>
         )}
       </div>
     );
@@ -86,8 +91,11 @@ export default function Damage() {
             ? "Potential New Damage"
             : "Potential Damage"}
         </span>
-        {(mode === "MOCK" || usingDevStub) && <DemoLabel />}
+        {(mode === "MOCK" || usingDevStub || demoResultActive) && <DemoLabel />}
       </div>
+      {demoResultActive && (
+        <p className="notice">Demo Mode · 展示結果，未分析本次拍攝影像。</p>
+      )}
       {result.damages.length > 1 && (
         <div
           className="damage-detection-selector"
@@ -146,7 +154,11 @@ export default function Damage() {
         boundingBox={damage.boundingBox}
         boxLabel={`${type.en} · ${Math.round(damage.confidence * 100)}%`}
         location={part.zh}
-        isDemo={mode === "MOCK" || (usingDevStub && cameraMode === "demo")}
+        isDemo={
+          demoResultActive ||
+          mode === "MOCK" ||
+          (usingDevStub && cameraMode === "demo")
+        }
       />
       {result.damages.length > 1 && (
         <p className="notice">
@@ -172,7 +184,10 @@ export default function Damage() {
           <br />
           Confidence: {damage.confidence}
           <br />
-          來源：{mode === "MOCK" ? "Mock API（未連接 AI 模型）" : "AI 分析服務"}
+          來源：
+          {demoResultActive || mode === "MOCK" || usingDevStub
+            ? "Demo（未連接 AI 模型）"
+            : "AI 分析服務"}
           <br />
           結果須由人工確認。
         </p>

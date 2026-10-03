@@ -32,7 +32,9 @@ import {
   InspectionApiError,
   inspectionErrorMessage,
 } from "@/services/inspection-service";
-import { mockConfig, mockVehicle } from "@/lib/mock-data";
+import { mockConfig, mockVehicle, resultFor } from "@/lib/mock-data";
+import { canUseDemoResults, type DemoResultScenario } from "@/lib/demo-config";
+import { createUniqueId } from "@/lib/unique-id";
 const Context = createContext<ReturnType<typeof useInspectionState> | null>(
   null,
 );
@@ -49,6 +51,7 @@ const initialSession = (): SavedInspectionSession => ({
   status: "idle",
   uploadComplete: false,
   scenario: mockConfig.defaultScenario,
+  demoResultScenario: undefined,
 });
 function useInspectionState() {
   const [session, setSession] = useState(initialSession);
@@ -90,7 +93,13 @@ function useInspectionState() {
           setProcessingProgress(100);
           setProcessingStage("completed");
         }
-        if (saved.uploadComplete)
+        if (saved.demoResultScenario) {
+          setResult({
+            ...resultFor(saved.demoResultScenario, saved.inspectionId),
+            vehicle: saved.vehicle,
+            createdAt: saved.createdAt,
+          });
+        } else if (saved.uploadComplete)
           inspectionService.restoreMockSession(
             saved.inspectionId,
             { vehicle: saved.vehicle, scenario: saved.scenario },
@@ -120,7 +129,7 @@ function useInspectionState() {
   }, [frameStore]);
   const clearFrames = useCallback(() => {
     releaseUploadedFrames();
-    patch({ capturedFrameCount: 0 });
+    if (!current.current.demoResultScenario) patch({ capturedFrameCount: 0 });
   }, [releaseUploadedFrames, patch]);
   const addFrame = useCallback(
     (frame: CapturedFrame) => {
@@ -184,6 +193,7 @@ function useInspectionState() {
         status: "idle",
         uploadComplete: false,
         keyFrameCount: 0,
+        demoResultScenario: undefined,
       });
       const { inspectionId } = await inspectionService.createInspection(
         { vehicle, scenario },
@@ -298,6 +308,7 @@ function useInspectionState() {
         uploadComplete: true,
         status: "completed",
         cameraMode: "demo",
+        demoResultScenario: undefined,
       });
       setTransferStage("uploaded");
       setProcessingProgress(100);
@@ -305,7 +316,40 @@ function useInspectionState() {
     },
     [patch, releaseUploadedFrames],
   );
+  const showDemoResult = useCallback(
+    (demoScenario: DemoResultScenario = "potential_damage") => {
+      if (!canUseDemoResults()) return false;
+      resetInspection();
+      const value = {
+        ...resultFor(demoScenario, createUniqueId("presentation")),
+        createdAt: new Date().toISOString(),
+      };
+      patch({
+        inspectionId: value.inspectionId,
+        vehicle: value.vehicle,
+        createdAt: value.createdAt,
+        scanDuration: value.scanDurationSeconds,
+        capturedFrameCount: value.keyFrameCount,
+        keyFrameCount: value.keyFrameCount,
+        cameraMode: "demo",
+        status: "completed",
+        uploadComplete: true,
+        scenario: demoScenario,
+        demoResultScenario: demoScenario,
+      });
+      setResult(value);
+      setScenario(demoScenario);
+      setTransferStage("uploaded");
+      setProcessingProgress(100);
+      setProcessingStage("completed");
+      return true;
+    },
+    [resetInspection, patch],
+  );
   return {
+    showDemoResult,
+    demoResultActive: Boolean(session.demoResultScenario),
+    demoResultsAvailable: canUseDemoResults(),
     acceptCompletedResult,
     resetInspection,
     resetVersion,

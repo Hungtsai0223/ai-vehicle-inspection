@@ -1,6 +1,7 @@
 import type { ProcessingStage, Vehicle } from "../types/inspection";
 import { createUniqueId } from "./unique-id";
 import { stubResults } from "./dev-stub-options";
+import { demoStubResult } from "./demo-config";
 export function handleStubHealth(request: Request) {
   if (process.env.NODE_ENV !== "development")
     return Response.json({ error: "Not found" }, { status: 404 });
@@ -172,7 +173,7 @@ export async function handleStubRequest(request: Request, segments: string[]) {
     const requestedResult =
       url.searchParams.get("result") ??
       process.env.NEXT_PUBLIC_DEV_AI_RESULT ??
-      "potential_damage";
+      demoStubResult();
     if (!stubResults.includes(requestedResult as StubResult))
       return error(400, "Invalid development result mode");
     cleanup();
