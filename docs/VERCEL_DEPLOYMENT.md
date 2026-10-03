@@ -52,12 +52,12 @@ npx vercel --prod
 
 ## GitHub
 
-目前尚未設定 GitHub remote。CLI 可直接部署 Vercel，不需要先有 GitHub repo；要保存版本與啟用 Git 自動部署，建立 private repo 後連結 remote／push。
+Private repository：[Hungtsai0223/ai-vehicle-inspection](https://github.com/Hungtsai0223/ai-vehicle-inspection)，`origin` 已連結 HTTPS remote，主分支為 `main`。Repository 根目錄直接包含 package.json；從 GitHub 匯入 Vercel 時，Root Directory 使用 `.`，不要再填本機的 outputs 路徑。
 
-若已安裝並登入 GitHub CLI，可在專案根目錄執行：
+若使用 Vercel 的 GitHub 匯入功能，選擇此 private repository；CLI 也可從同一專案根目錄部署。更新專案後：
 
 ```bash
-gh repo create ai-vehicle-inspection --private --source=. --remote=origin --push
+git push origin main
 ```
 
 不要把 GitHub 或 Vercel 登入 token 放進 repository 或公開環境變數。

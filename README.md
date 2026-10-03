@@ -230,12 +230,12 @@ Prototype 版本中的影像僅用於本次車況檢測流程；實際正式服�
 
 ## GitHub
 
-環境沒有 GitHub CLI，專案可由本機推送：
+Private repository：[Hungtsai0223/ai-vehicle-inspection](https://github.com/Hungtsai0223/ai-vehicle-inspection)。GitHub CLI 已登入，`origin` 使用 HTTPS；從本專案目錄推送更新：
 
 ```bash
-git remote add origin <repository-url>
-git branch -M main
-git push -u origin main
+git add .
+git commit -m "Describe the change"
+git push origin main
 ```
 
 ## Presentation Entry and Demo Configuration
