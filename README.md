@@ -2,6 +2,8 @@
 
 共享汽車智慧車況檢測系統 · 2026 AI Hackathon 前端 MVP
 
+公開展示：[https://ai-vehicle-inspection.vercel.app/demo](https://ai-vehicle-inspection.vercel.app/demo)。使用 Mock AI，任何人可開啟，不需啟動本機 server。
+
 ## Project Overview
 
 嵌入共享汽車還車流程的 mobile-first 外觀檢查模組，主要尺寸為 390 × 844。以繁體中文提供掃描指引、疑似異常補拍與檢查摘要。此專案沒有實際 AI 模型，也不判定責任。
@@ -130,7 +132,7 @@ npm run format
 
 建議測試流程：
 
-1. 若使用 Vercel，將此分支部署成 Preview deployment，取得 HTTPS 網址（也可使用其他 HTTPS hosting）。本次未自動部署。
+1. 使用 [Vercel 公開 Demo](https://ai-vehicle-inspection.vercel.app/demo) 的 HTTPS 網址，或另建自己的 Preview deployment。
 2. 在手機 Safari / Chrome 開啟 HTTPS 網址，經 `/return → /scan-guide → /scan`。
 3. 選「真實相機」，確認隱私提示，按「開始真實掃描」，允許相機權限。後鏡頭為 ideal environment，裝置仍可能選擇其他可用鏡頭。
 4. 手機直立，依車頭 → 左側 → 車尾 → 右側指引慢慢拍攝。預覽用 `<video playsInline muted autoPlay>`；橫向只顯示建議，不鎖定方向。
@@ -214,7 +216,7 @@ AI 僅協助篩選疑似異常，不直接作為責任判定依據。
 
 Vercel Preview/Production 環境變數：`NEXT_PUBLIC_USE_MOCK_AI`、`NEXT_PUBLIC_AI_API_URL`、`NEXT_PUBLIC_DEMO_RESULT`（預設 potential_damage）、`NEXT_PUBLIC_ENABLE_DEMO`（HTTP 展示才設 true）；舊 `NEXT_PUBLIC_DEV_AI_RESULT` 只限 development stub，正式部署可省略。第一版 Hackathon demo 設 Mock=true；接真實 backend 時改 false + 可由手機到達的 HTTPS API URL，再重新部署。後端 CORS 必須允許實際前端 HTTPS origin，圖片也須 HTTPS。不要在部署設定使用 localhost 或本機 /api/dev：production stub 與 /dev/integration 都回 404。
 
-本機 build/start 驗證部署相容性，但不等於已部署。本專案未連結 `.vercel` project，未自動部署。平台配置依 [Vercel Next.js](https://vercel.com/docs/frameworks/full-stack/nextjs) 與 [environment variables](https://vercel.com/docs/environment-variables) 官方文件。
+已完成 Vercel Preview 與 Production 部署，正式網址為 [ai-vehicle-inspection.vercel.app](https://ai-vehicle-inspection.vercel.app)。Preview 保留 Vercel 帳號保護，正式網域公開可達。兩個環境均已透過 CLI 設定 Mock=true、DEMO_RESULT=potential_damage、ENABLE_DEMO=true，不需手動加入後端 URL。平台配置依 [Vercel Next.js](https://vercel.com/docs/frameworks/full-stack/nextjs) 與 [environment variables](https://vercel.com/docs/environment-variables) 官方文件。
 
 CLI 登入、Root Directory、環境變數與 Preview → Production 流程見 [VERCEL_DEPLOYMENT](docs/VERCEL_DEPLOYMENT.md)。
 

@@ -2,6 +2,18 @@
 
 此專案使用 Next.js 16.3.8 App Router、React 19.3 與 npm。`app/demo/page.tsx` 提供 `/demo`；本機 production 由 `next start --port 3001` 提供頁面。公開部署不依賴本機 server。
 
+## Current deployment · 2026-10-03
+
+- Production：[ai-vehicle-inspection.vercel.app](https://ai-vehicle-inspection.vercel.app)。
+- 公開 Demo：[ai-vehicle-inspection.vercel.app/demo](https://ai-vehicle-inspection.vercel.app/demo)，不需 Vercel 登入。
+- 已驗證 Preview：[Preview /demo](https://ai-vehicle-inspection-lmigg341z-ralf-tsai-s-projects.vercel.app/demo)，保留 Vercel 帳號保護。
+- Vercel project：ralf-tsai-s-projects / ai-vehicle-inspection，已連結 private GitHub repo 的 main 分支。
+- 下列三個 Demo 變數已透過 CLI 同時設定至 Preview／Production；目前無需到 Dashboard 手動補值。
+- 首頁、/demo 重新載入、主要路由、21 個 CSS／JS／圖片資源均正常；公開 Demo 的五種指定尺寸與結果／重設操作已驗證。
+- 實機 iPhone Safari／Android Chrome 相機權限與拍攝仍待測試，真實 AI 尚未串接。
+
+雲端 build 成功。非阻擋警告包含 ESLint 9 的支援期限、5 項 ESLint 工具鏈高風險 audit 項目，以及 unrs-resolver postinstall 未列入 npm allowScripts；未使用 audit fix --force 或升降主要框架版本。`npm audit --omit=dev` 為 0 項漏洞。
+
 ## Project settings
 
 | Setting | Value |
