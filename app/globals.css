@@ -598,6 +598,7 @@ main {
   display: flex !important;
   gap: 8px;
   align-items: center;
+  min-height: 44px;
 }
 input[type="checkbox"] {
   width: 18px;

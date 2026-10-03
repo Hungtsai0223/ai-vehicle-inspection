@@ -31,6 +31,8 @@ export default function Analyzing() {
     setApiError,
     setResult,
     setStatus,
+    result,
+    demoResultActive,
   } = useInspection();
   const { id: vehicleId, model: vehicleModel, plate: vehiclePlate } = vehicle;
   const [retry, setRetry] = useState(0);
@@ -38,6 +40,15 @@ export default function Analyzing() {
   const reduced = useReducedMotion();
   useEffect(() => {
     if (!sessionReady || !inspectionId || !uploadComplete) return;
+    // Launcher/fallback results are already complete and have no backend session.
+    if (result?.inspectionId === inspectionId) {
+      router.replace(
+        !demoResultActive && result.detectionStatus === "potential_damage"
+          ? "/damage"
+          : "/result",
+      );
+      return;
+    }
     const controller = new AbortController();
     // Upload preparation already starts analysis. Refresh and retry only read
     // the existing inspection; never replay the complete POST after remount.
@@ -87,6 +98,8 @@ export default function Analyzing() {
     sessionReady,
     inspectionId,
     uploadComplete,
+    result,
+    demoResultActive,
     retry,
     mode,
     vehicleId,

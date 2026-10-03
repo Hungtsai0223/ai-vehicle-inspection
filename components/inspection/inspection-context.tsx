@@ -187,11 +187,15 @@ function useInspectionState() {
       setApiError("");
       setProgress(0);
       setRecaptured(false);
+      setProcessingProgress(0);
+      setProcessingStage("image_validation");
+      setTransferStage("idle");
       const vehicle = current.current.vehicle;
       patch({
         inspectionId: "",
         status: "idle",
         uploadComplete: false,
+        capturedFrameCount: 0,
         keyFrameCount: 0,
         demoResultScenario: undefined,
       });

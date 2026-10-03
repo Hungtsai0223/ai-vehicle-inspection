@@ -79,3 +79,19 @@ No Playwright dependency was added: this repo uses built-in Node reliability tes
 - [ ] 375×667、390×844、393×852、430×932、1440×900：無水平溢出，主要觸控目標至少約 44px。
 - [ ] iPhone notch/home indicator、安全區、收合／展開瀏覽器工具列、100dvh 高度與頁面捲動實機驗證。
 - [ ] 未知網址 →「找不到此頁面」→ 返回車況檢查；全域錯誤只顯示安全文案與重新整理／Demo 首頁。
+
+## Manual Real Device Results
+
+以下欄位與項目保留空白／未勾選，須由實體手機完成；桌面 viewport、自動化與 Mock 測試不代表硬體驗證。
+
+| Device / OS / Browser | Date | Environment / URL | Result / Evidence |
+| --------------------- | ---- | ----------------- | ----------------- |
+| iPhone / Safari       |      |                   |                   |
+| Android / Chrome      |      |                   |                   |
+
+- [ ] Safari：375×667、390×844、393×852、430×932，瀏覽器工具列展開／收合時 CTA 可捲動到、安全區與旋轉正常。
+- [ ] Safari：明確點擊才請求權限；後鏡頭、playsInline/muted、允許／拒絕／相機忙碌後重開正常。
+- [ ] Safari：背景切換、鎖定／解鎖、track ended、快速離頁與延遲權限回應後相機確實停止。
+- [ ] Android Chrome：相機啟動、擷取計數、四面至少 12 張、關鍵影格選取、完成後停止並進入分析。
+- [ ] 兩平台：2 FPS、JPEG 最長邊 1280px／quality 0.8、長時間掃描的記憶體、發熱與預覽流暢度。
+- [ ] 兩平台：真實 HTTPS backend 的離線、上傳失敗重試、分析逾時、refresh 與缺失影像恢復。

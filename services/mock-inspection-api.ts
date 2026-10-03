@@ -2,10 +2,30 @@ import { createUniqueId } from "../lib/unique-id";
 import { mockConfig, resultFor } from "../lib/mock-data";
 import type { CapturedFrame } from "../types/frame";
 import type { InspectionProgress } from "../types/inspection";
-import type { CreateInspectionInput, InspectionApi } from "./inspection-api";
+import type {
+  ApiRequestOptions,
+  CreateInspectionInput,
+  InspectionApi,
+} from "./inspection-api";
 import { InspectionApiError } from "./inspection-errors";
-const wait = (milliseconds: number) =>
-  new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
+const wait = (milliseconds: number, signal?: AbortSignal) =>
+  new Promise<void>((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new InspectionApiError("ABORTED"));
+      return;
+    }
+    const finish = () => {
+      signal?.removeEventListener("abort", abort);
+      resolve();
+    };
+    const abort = () => {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", abort);
+      reject(new InspectionApiError("ABORTED"));
+    };
+    const timer = setTimeout(finish, milliseconds);
+    signal?.addEventListener("abort", abort, { once: true });
+  });
 export class MockInspectionApi implements InspectionApi {
   private readonly sessions = new Map<
     string,
@@ -23,6 +43,9 @@ export class MockInspectionApi implements InspectionApi {
       processing: mockConfig.analysisDurationMs,
     },
   ) {}
+  forgetSession(id: string) {
+    this.sessions.delete(id);
+  }
   restoreSession(
     id: string,
     input: CreateInspectionInput,
@@ -46,8 +69,11 @@ export class MockInspectionApi implements InspectionApi {
       );
     return session;
   }
-  async createInspection(input: CreateInspectionInput) {
-    await wait(this.timings.create);
+  async createInspection(
+    input: CreateInspectionInput,
+    options: ApiRequestOptions = {},
+  ) {
+    await wait(this.timings.create, options.signal);
     const inspectionId = createUniqueId("demo");
     this.sessions.set(inspectionId, {
       ...input,
@@ -56,21 +82,28 @@ export class MockInspectionApi implements InspectionApi {
     });
     return { inspectionId, status: "scanning" as const };
   }
-  async uploadInspectionFrames(id: string, frames: CapturedFrame[]) {
-    await wait(this.timings.upload);
+  async uploadInspectionFrames(
+    id: string,
+    frames: CapturedFrame[],
+    options: ApiRequestOptions = {},
+  ) {
+    await wait(this.timings.upload, options.signal);
     if (!frames.length) throw new InspectionApiError("UPLOAD_FAILED");
     this.session(id).frameCount = frames.length;
     return { accepted: frames.length };
   }
-  async completeInspection(id: string) {
-    await wait(this.timings.request);
+  async completeInspection(id: string, options: ApiRequestOptions = {}) {
+    await wait(this.timings.request, options.signal);
     const session = this.session(id);
     if (!session.frameCount) throw new InspectionApiError("UPLOAD_FAILED");
     session.processingStarted ??= Date.now();
     return { inspectionId: id, status: "processing" as const };
   }
-  async getInspectionStatus(id: string): Promise<InspectionProgress> {
-    await wait(this.timings.request);
+  async getInspectionStatus(
+    id: string,
+    options: ApiRequestOptions = {},
+  ): Promise<InspectionProgress> {
+    await wait(this.timings.request, options.signal);
     const session = this.session(id);
     if (
       session.scenario === "backend_error" &&
@@ -107,8 +140,8 @@ export class MockInspectionApi implements InspectionApi {
             : "completed",
     };
   }
-  async getInspectionResult(id: string) {
-    const status = await this.getInspectionStatus(id);
+  async getInspectionResult(id: string, options: ApiRequestOptions = {}) {
+    const status = await this.getInspectionStatus(id, options);
     if (status.status !== "completed")
       throw new InspectionApiError(
         "PROCESSING_FAILED",

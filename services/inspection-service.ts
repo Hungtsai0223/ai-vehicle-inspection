@@ -42,6 +42,7 @@ export function createInspectionService(
     forgetInspection: (id: string) => {
       uploads.delete(id);
       completions.delete(id);
+      if (api instanceof MockInspectionApi) api.forgetSession(id);
     },
     createInspection: (
       input: CreateInspectionInput = { vehicle: mockVehicle },

@@ -35,6 +35,9 @@ export function useVehicleScan() {
     setCameraMode,
     prepareAnalysis,
     resetVersion,
+    mode: inspectionMode,
+    poorNetwork,
+    uploadComplete,
   } = useInspection();
   const router = useRouter();
   const [prototypeProgress, setPrototypeProgress] = useState(0);
@@ -139,6 +142,8 @@ export function useVehicleScan() {
     updatePhase("complete");
     setError("");
     try {
+      if (inspectionMode === "MOCK" && poorNetwork && !uploadComplete)
+        throw new InspectionApiError("NETWORK_ERROR");
       await prepareAnalysis(scanDuration.current, controller.current.signal);
       if (!mounted.current || token !== run.current) return;
       committed.current = true;
@@ -156,7 +161,14 @@ export function useVehicleScan() {
     } finally {
       if (uploadRun.current === token) uploadRun.current = null;
     }
-  }, [prepareAnalysis, router, updatePhase]);
+  }, [
+    prepareAnalysis,
+    router,
+    updatePhase,
+    inspectionMode,
+    poorNetwork,
+    uploadComplete,
+  ]);
   const finish = useCallback(() => {
     if (phaseRef.current !== "scanning") return;
     if (activeMode.current === "real" && !enoughFrames(getFrames())) return;

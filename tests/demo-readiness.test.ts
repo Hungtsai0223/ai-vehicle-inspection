@@ -11,6 +11,7 @@ import { parseResult } from "../services/inspection-response";
 import { MockInspectionApi } from "../services/mock-inspection-api";
 import { pollInspection } from "../services/poll-inspection";
 import { InspectionApiError } from "../services/inspection-errors";
+import { createInspectionService } from "../services/inspection-service";
 import { createMockFrame } from "../lib/mock-frames";
 import {
   readInspectionSession,
@@ -166,4 +167,121 @@ test("real experiments remain empty; existing demonstration records use normaliz
         row.processingTimeSeconds > 0,
     ),
   );
+});
+
+test("cancelled Mock creation, upload and completion cannot advance an inspection", async () => {
+  const api = new MockInspectionApi({
+    create: 10,
+    upload: 10,
+    request: 10,
+    processing: 1,
+  });
+  const aborted = (error: unknown) =>
+    error instanceof InspectionApiError && error.code === "ABORTED";
+  const creation = new AbortController();
+  const pendingCreate = api.createInspection(
+    { vehicle: mockVehicle },
+    { signal: creation.signal },
+  );
+  creation.abort();
+  await assert.rejects(pendingCreate, aborted);
+  const { inspectionId } = await api.createInspection({ vehicle: mockVehicle });
+  const upload = new AbortController();
+  const pendingUpload = api.uploadInspectionFrames(
+    inspectionId,
+    [createMockFrame(0, 0)],
+    { signal: upload.signal },
+  );
+  upload.abort();
+  await assert.rejects(pendingUpload, aborted);
+  await assert.rejects(
+    api.completeInspection(inspectionId),
+    (error: unknown) =>
+      error instanceof InspectionApiError && error.code === "UPLOAD_FAILED",
+  );
+  await api.uploadInspectionFrames(inspectionId, [createMockFrame(0, 0)]);
+  const completion = new AbortController();
+  const pendingComplete = api.completeInspection(inspectionId, {
+    signal: completion.signal,
+  });
+  completion.abort();
+  await assert.rejects(pendingComplete, aborted);
+  assert.equal(
+    (await api.getInspectionStatus(inspectionId)).status,
+    "scanning",
+  );
+});
+
+test("reset forgets Mock records and cancelled result reads do not resume after reset", async () => {
+  const api = new MockInspectionApi({
+    create: 0,
+    upload: 0,
+    request: 10,
+    processing: 1,
+  });
+  const service = createInspectionService(api, "MOCK");
+  const { inspectionId } = await service.createInspection();
+  await service.uploadInspectionFrames(inspectionId, [createMockFrame(0, 0)]);
+  await service.completeInspection(inspectionId);
+  const controller = new AbortController();
+  const pending = service.getInspectionResult(inspectionId, {
+    signal: controller.signal,
+  });
+  controller.abort();
+  service.forgetInspection(inspectionId);
+  await assert.rejects(
+    pending,
+    (error: unknown) =>
+      error instanceof InspectionApiError && error.code === "ABORTED",
+  );
+  await assert.rejects(
+    service.getInspectionStatus(inspectionId),
+    (error: unknown) =>
+      error instanceof InspectionApiError && error.code === "PROCESSING_FAILED",
+  );
+});
+
+test("saved presentation results cannot bypass a disabled production Demo setting", () => {
+  const previous = {
+    NODE_ENV: process.env.NODE_ENV,
+    NEXT_PUBLIC_USE_MOCK_AI: process.env.NEXT_PUBLIC_USE_MOCK_AI,
+    NEXT_PUBLIC_ENABLE_DEMO: process.env.NEXT_PUBLIC_ENABLE_DEMO,
+  };
+  const descriptor = Object.getOwnPropertyDescriptor(globalThis, "window");
+  const saved = {
+    version: 1,
+    mode: "API",
+    inspectionId: "presentation_test",
+    vehicle: mockVehicle,
+    createdAt: new Date().toISOString(),
+    scanDuration: 26.8,
+    capturedFrameCount: 16,
+    keyFrameCount: 16,
+    cameraMode: "demo",
+    status: "completed",
+    uploadComplete: true,
+    scenario: "no_damage",
+    demoResultScenario: "no_damage",
+  };
+  Object.defineProperty(globalThis, "window", {
+    configurable: true,
+    value: { sessionStorage: { getItem: () => JSON.stringify(saved) } },
+  });
+  try {
+    Object.assign(process.env, {
+      NODE_ENV: "production",
+      NEXT_PUBLIC_USE_MOCK_AI: "false",
+      NEXT_PUBLIC_ENABLE_DEMO: "false",
+    });
+    assert.equal(readInspectionSession("API"), null);
+    process.env.NEXT_PUBLIC_ENABLE_DEMO = "true";
+    assert.equal(readInspectionSession("API")?.demoResultScenario, "no_damage");
+  } finally {
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    if (descriptor) Object.defineProperty(globalThis, "window", descriptor);
+    else Reflect.deleteProperty(globalThis, "window");
+  }
 });

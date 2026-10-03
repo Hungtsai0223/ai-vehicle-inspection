@@ -1,6 +1,10 @@
 import type { CameraMode } from "../types/camera";
 import type { InspectionStatus, Scenario, Vehicle } from "../types/inspection";
-import { isScenario, type DemoResultScenario } from "./demo-config";
+import {
+  canUseDemoResults,
+  isScenario,
+  type DemoResultScenario,
+} from "./demo-config";
 export const sessionStorageKey = "vehicle-inspection-session-v1";
 export interface SavedInspectionSession {
   version: 1;
@@ -51,7 +55,8 @@ export function readInspectionSession(
       !["demo", "real"].includes(s.cameraMode) ||
       !isScenario(s.scenario) ||
       (s.demoResultScenario !== undefined &&
-        (!isScenario(s.demoResultScenario) ||
+        (!canUseDemoResults() ||
+          !isScenario(s.demoResultScenario) ||
           s.demoResultScenario === "backend_error" ||
           s.status !== "completed" ||
           !s.uploadComplete)) ||
