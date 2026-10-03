@@ -1,0 +1,15 @@
+.git/
+node_modules/
+.next/
+dist/
+.env
+.env.*
+!.env.example
+.DS_Store
+work/
+captures/
+debug/
+playwright-report/
+test-results/
+*.log
+*.tsbuildinfo

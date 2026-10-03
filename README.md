@@ -216,6 +216,8 @@ Vercel Preview/Production 環境變數：`NEXT_PUBLIC_USE_MOCK_AI`、`NEXT_PUBLI
 
 本機 build/start 驗證部署相容性，但不等於已部署。本專案未連結 `.vercel` project，未自動部署。平台配置依 [Vercel Next.js](https://vercel.com/docs/frameworks/full-stack/nextjs) 與 [environment variables](https://vercel.com/docs/environment-variables) 官方文件。
 
+CLI 登入、Root Directory、環境變數與 Preview → Production 流程見 [VERCEL_DEPLOYMENT](docs/VERCEL_DEPLOYMENT.md)。
+
 ## Mobile / Manual E2E Tests
 
 完整跨瀏覽器清單見 [MOBILE_TEST_CHECKLIST](docs/MOBILE_TEST_CHECKLIST.md)。本專案沒有既有 Playwright 套件或 e2e 設定；保留 Node 測試與 Codex 瀏覽器互動驗證，避免加入額外瀏覽器依賴。實機相機不能由這些測試代替。
