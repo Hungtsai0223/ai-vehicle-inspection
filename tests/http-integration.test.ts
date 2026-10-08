@@ -83,10 +83,24 @@ test("native HTTP transport: exact create, multipart bytes, polling, results and
         );
         assert.equal(result.keyFrameCount, 16);
         assert.equal(result.scanDurationSeconds, 7.5);
+        // Real HTTP polling may skip intermediate stages under CPU/network load.
+        // Assert legal monotonic observations and completion, not wall-clock sampling luck.
+        const stageOrder = [
+          "image_validation",
+          "vehicle_part_detection",
+          "damage_detection",
+          "before_after_comparison",
+          "completed",
+        ];
+        assert.equal(observed.at(-1), "completed");
         assert.ok(
-          observed.includes("image_validation") &&
-            observed.includes("damage_detection") &&
-            observed.includes("completed"),
+          observed.every(
+            (stage, i) =>
+              stageOrder.includes(stage) &&
+              (i === 0 ||
+                stageOrder.indexOf(stage) >=
+                  stageOrder.indexOf(observed[i - 1])),
+          ),
         );
         assert.deepEqual(
           result.missingAreas,

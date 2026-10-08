@@ -14,6 +14,8 @@ import type {
   ProcessingStage,
   Scenario,
 } from "@/types/inspection";
+import type { ScanSector } from "@/types/scan";
+import { unavailableAreas } from "@/lib/scan-coverage";
 import type { CameraMode } from "@/types/camera";
 import { MemoryFrameStore, releaseFramePreview } from "@/lib/frame-store";
 import {
@@ -52,6 +54,7 @@ const initialSession = (): SavedInspectionSession => ({
   uploadComplete: false,
   scenario: mockConfig.defaultScenario,
   demoResultScenario: undefined,
+  unavailableScanSectors: undefined,
 });
 function useInspectionState() {
   const [session, setSession] = useState(initialSession);
@@ -79,6 +82,17 @@ function useInspectionState() {
   const patch = useCallback((value: Partial<SavedInspectionSession>) => {
     current.current = { ...current.current, ...value };
     setSession(current.current);
+  }, []);
+  const setScanUnavailable = useCallback(
+    (unavailableScanSectors: ScanSector[]) => patch({ unavailableScanSectors }),
+    [patch],
+  );
+  const setInspectionResult = useCallback((value: InspectionResult | null) => {
+    setResult(
+      value
+        ? unavailableAreas(value, current.current.unavailableScanSectors ?? [])
+        : null,
+    );
   }, []);
   useEffect(() => {
     let cancelled = false;
@@ -198,6 +212,7 @@ function useInspectionState() {
         capturedFrameCount: 0,
         keyFrameCount: 0,
         demoResultScenario: undefined,
+        unavailableScanSectors: undefined,
       });
       const { inspectionId } = await inspectionService.createInspection(
         { vehicle, scenario },
@@ -313,6 +328,7 @@ function useInspectionState() {
         status: "completed",
         cameraMode: "demo",
         demoResultScenario: undefined,
+        unavailableScanSectors: undefined,
       });
       setTransferStage("uploaded");
       setProcessingProgress(100);
@@ -389,7 +405,8 @@ function useInspectionState() {
     setApiError,
     transferStage,
     result,
-    setResult,
+    setResult: setInspectionResult,
+    setScanUnavailable,
     recaptured,
     setRecaptured,
     poorNetwork,

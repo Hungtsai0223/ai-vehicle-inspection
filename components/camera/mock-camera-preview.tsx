@@ -5,11 +5,13 @@ interface CameraPreviewProps {
   state: ScanState;
   label?: string;
   aimOnly?: boolean;
+  showBoundingBox?: boolean;
 }
 export function MockCameraPreview({
   state,
   label = "模擬攝影機 · 不存取鏡頭",
   aimOnly = false,
+  showBoundingBox = true,
 }: CameraPreviewProps) {
   return (
     <div
@@ -21,7 +23,7 @@ export function MockCameraPreview({
         {label}
       </span>
       <VehicleIllustration dark />
-      <BoundingBox good={!aimOnly && state === "good"} />
+      {showBoundingBox && <BoundingBox good={!aimOnly && state === "good"} />}
     </div>
   );
 }

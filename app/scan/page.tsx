@@ -1,12 +1,10 @@
 "use client";
-import { useState, useSyncExternalStore } from "react";
+import { useRef, useState, useSyncExternalStore } from "react";
 import { CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/primitives";
-import {
-  ScanOverlay,
-  ScanProgress,
-  CoverageIndicator,
-} from "@/components/scan/scan-components";
+import { ScanOverlay } from "@/components/scan/scan-components";
+import { VehicleCoverageRing } from "@/components/scan/VehicleCoverageRing";
+import { SCAN_SECTORS } from "@/lib/scan-coverage";
 import { DemoControls } from "@/components/scan/demo-controls";
 import { useVehicleScan } from "@/components/scan/use-vehicle-scan";
 import { useInspection } from "@/components/inspection/inspection-context";
@@ -26,10 +24,15 @@ export default function Scan() {
   const [selectedMode, setSelectedMode] = useState<CameraMode | null>(null);
   const mode = selectedMode ?? preferredMode;
   const [validation, setValidation] = useState<ScanState>("good");
-  const scan = useVehicleScan();
-  const exposure = ctx.frames[ctx.frames.length - 1]?.quality.exposureScore;
-  const realValidation: ScanState =
-    exposure !== undefined && exposure < 0.15 ? "too_dark" : "good";
+  const scan = useVehicleScan(validation);
+  const skipDialog = useRef<HTMLDialogElement>(null);
+  const currentSector = SCAN_SECTORS.find(
+    (s) => s.id === scan.coverage.currentSector,
+  );
+  const instruction =
+    scan.coverage.capturedSectorCount === 12
+      ? "車況掃描完成"
+      : (currentSector?.instruction ?? "開始後，依指引繞行車身");
   function changeMode(value: CameraMode) {
     scan.reset();
     setSelectedMode(value);
@@ -47,8 +50,19 @@ export default function Scan() {
     <div className={`scan-page ${mode === "real" ? "real-scan" : ""}`}>
       <p className="scan-vehicle-name">{ctx.vehicle.model}</p>
       <ScanOverlay
-        state={mode === "real" ? realValidation : validation}
+        state={mode === "real" ? "good" : validation}
         progress={scan.prototypeProgress}
+        instruction={instruction}
+        framing={
+          mode === "real"
+            ? scan.framing
+            : validation === "too_close"
+              ? "TOO_CLOSE"
+              : validation === "too_far"
+                ? "TOO_FAR"
+                : "GOOD"
+        }
+        qualityMessage={scan.qualityMessage}
         mode={mode}
         scanActive={scan.phase === "scanning" && ctx.status === "scanning"}
         cameraRequested={scan.cameraRequested}
@@ -116,25 +130,74 @@ export default function Scan() {
             <small>{ctx.keyFrameCount} 張關鍵影格</small>
           </p>
         )}
-        <ScanProgress
-          progress={scan.prototypeProgress}
-          prototype={mode === "real"}
+        <VehicleCoverageRing
+          coverage={scan.coverage}
+          onSelect={scan.selectSector}
+          disabled={scan.phase !== "scanning" || mode === "demo"}
         />
-        <CoverageIndicator
-          progress={scan.prototypeProgress}
-          incomplete={
-            mode === "demo" &&
-            ctx.mode === "MOCK" &&
-            (ctx.scenario === "incomplete" || ctx.scenario === "unknown_area")
-          }
-          prototype={mode === "real"}
-        />
+        <div className="guided-movement" role="status">
+          <strong>{instruction}</strong>
+          {scan.canFinish && (
+            <span className="guided-completion">
+              {scan.coverage.capturedSectorCount === 12
+                ? "完整掃描"
+                : "主要車身區域已完成"}{" "}
+              · 車況掃描完成
+            </span>
+          )}
+          {scan.phase === "scanning" && currentSector && (
+            <small>
+              {currentSector.label} ·{" "}
+              {scan.coverage.sectors.find((s) => s.id === currentSector.id)
+                ?.validFrameCount ?? 0}{" "}
+              / 2 張有效影格
+            </small>
+          )}
+        </div>
+        {mode === "real" && scan.phase === "scanning" && currentSector && (
+          <div className="guided-actions">
+            {!scan.coverage.armed && (
+              <Button className="secondary" onClick={scan.armCurrent}>
+                已移至此角度，開始擷取
+              </Button>
+            )}
+            {scan.coverage.armed && (
+              <p className="guided-capturing">保持穩定，正在擷取此角度…</p>
+            )}
+            <button
+              className="skip-angle"
+              type="button"
+              onClick={() => {
+                scan.pauseCurrent();
+                skipDialog.current?.showModal();
+              }}
+            >
+              無法拍攝此角度
+            </button>
+          </div>
+        )}
+        {mode === "real" &&
+          scan.phase === "scanning" &&
+          !currentSector &&
+          !scan.canFinish && (
+            <p className="notice">
+              主要角度尚未完成，請點選環上的 Unknown
+              角度重新拍攝。需完成車頭、左側、車尾及右側。
+            </p>
+          )}
         <div className="frame-capture-count" role="status">
-          已擷取影格 <b>{ctx.capturedFrameCount}</b>
+          已擷取影格 <b>{scan.coverage.validFrameCount}</b>
         </div>
         {mode === "real" && (
           <p className="prototype-progress-note">
-            四面拍攝後，按「完成掃描」。進度與方位是時間引導，並非車輛覆蓋偵測。
+            每次移位後確認開始擷取；需至少完成 10
+            個角度，包含車頭、左側、車尾與右側。角度為暫定引導標籤，尚未接入 AI
+            視角／車身辨識。
+          </p>
+        )}
+        {mode === "demo" && (
+          <p className="prototype-progress-note">
+            Demo：角度與取景狀態為模擬，仍需有效影格才推進。
           </p>
         )}
         {mode === "demo" && ctx.mode === "MOCK" && ctx.poorNetwork && (
@@ -221,6 +284,34 @@ export default function Scan() {
           />
         )}
       </div>
+      <dialog
+        ref={skipDialog}
+        className="recapture-dialog"
+        aria-labelledby="skip-angle-title"
+      >
+        <h2 id="skip-angle-title">無法拍攝{currentSector?.label}？</h2>
+        <p>
+          此角度將標記為
+          Unknown，相關區域需要後續人工確認，不能視為沒有損傷。車頭、左側、車尾與右側仍需拍攝才能完成掃描。
+        </p>
+        <Button
+          className="secondary"
+          onClick={() => {
+            skipDialog.current?.close();
+            scan.armCurrent();
+          }}
+        >
+          繼續拍攝
+        </Button>
+        <Button
+          onClick={() => {
+            scan.skipCurrent();
+            skipDialog.current?.close();
+          }}
+        >
+          確認無法拍攝
+        </Button>
+      </dialog>
     </div>
   );
 }

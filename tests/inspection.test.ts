@@ -141,6 +141,12 @@ test("HTTP adapter uses all five v1 endpoints and exact multipart fields in mill
   });
   const realFrames = frames.slice(0, 2).map((frame) => ({
     ...frame,
+    scan: {
+      sector: "front" as const,
+      requestId: 42,
+      source: "guided-prototype" as const,
+    },
+    motionScore: 0.04,
     blob: new Blob([new Uint8Array([255, 216, 255])], { type: "image/jpeg" }),
   }));
   await api.uploadInspectionFrames(inspectionId, realFrames);
@@ -183,6 +189,12 @@ test("HTTP adapter uses all five v1 endpoints and exact multipart fields in mill
     [0, 500],
   );
   assert.equal(metadata.frames[0].vehicleView, "front");
+  assert.deepEqual(Object.keys(metadata.frames[0]).sort(), [
+    "id",
+    "quality",
+    "timestamp",
+    "vehicleView",
+  ]);
   assert.equal(
     metadata.frames[0].quality.exposureScore,
     realFrames[0].quality.exposureScore,

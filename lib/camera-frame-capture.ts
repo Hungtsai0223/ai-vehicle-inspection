@@ -1,3 +1,5 @@
+import type { ScanFrameLabel } from "../types/scan";
+import { sectorVehicleView } from "./vehicle-view-classifier";
 import { createUniqueId } from "./unique-id";
 import type { CapturedFrame, VehicleView } from "../types/frame";
 export const frameSamplingIntervalMs = 500;
@@ -40,7 +42,26 @@ export function estimateExposure(
       0.2126 * pixels[i] + 0.7152 * pixels[i + 1] + 0.0722 * pixels[i + 2];
   return total / (pixels.length / 4) / 255;
 }
+/** Coarse pixel-change proxy. Lighting changes may also trigger retry. */
+export class FrameMotionEstimator {
+  private previous?: Uint8ClampedArray;
+  observe(pixels: Uint8ClampedArray): number | undefined {
+    const previous = this.previous;
+    this.previous = new Uint8ClampedArray(pixels);
+    if (!previous || previous.length !== pixels.length || !pixels.length)
+      return undefined;
+    let delta = 0;
+    for (let i = 0; i < pixels.length; i += 4)
+      delta +=
+        Math.abs(pixels[i] - previous[i]) +
+        Math.abs(pixels[i + 1] - previous[i + 1]) +
+        Math.abs(pixels[i + 2] - previous[i + 2]);
+    return delta / (pixels.length / 4) / 3 / 255;
+  }
+}
 export interface FrameCaptureOptions {
+  scan?: ScanFrameLabel;
+  motionEstimator?: FrameMotionEstimator;
   timestamp: number;
   prototypeProgress: number;
   canvas?: HTMLCanvasElement;
@@ -60,6 +81,7 @@ export async function captureCameraFrame(
   if (!context) throw new Error("Canvas capture unavailable");
   context.drawImage(video, 0, 0, size.width, size.height);
   let exposureScore: number | undefined;
+  let motionScore: number | undefined;
   try {
     const sample = options.qualityCanvas ?? document.createElement("canvas");
     sample.width = 32;
@@ -67,9 +89,9 @@ export async function captureCameraFrame(
     const sampleContext = sample.getContext("2d", { willReadFrequently: true });
     if (sampleContext) {
       sampleContext.drawImage(canvas, 0, 0, 32, 32);
-      exposureScore = estimateExposure(
-        sampleContext.getImageData(0, 0, 32, 32).data,
-      );
+      const pixels = sampleContext.getImageData(0, 0, 32, 32).data;
+      exposureScore = estimateExposure(pixels);
+      motionScore = options.motionEstimator?.observe(pixels);
     }
   } catch {
     /* Optional quality metadata must not block capture. */
@@ -83,7 +105,11 @@ export async function captureCameraFrame(
     timestamp: options.timestamp,
     blob,
     previewUrl: URL.createObjectURL(blob),
-    vehicleView: estimateVehicleView(options.prototypeProgress),
+    vehicleView: options.scan
+      ? sectorVehicleView(options.scan.sector)
+      : estimateVehicleView(options.prototypeProgress),
+    scan: options.scan,
+    motionScore,
     quality: { exposureScore },
   };
 }

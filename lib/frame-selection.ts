@@ -1,7 +1,7 @@
 import type { CapturedFrame, VehicleView } from "../types/frame";
 const views: VehicleView[] = ["front", "left", "rear", "right", "unknown"];
 /** Allocate evenly across available view groups, then spread picks within each group.
- * View labels are only progress estimates. Future ranking can combine sharpness,
+ * Guided sector labels are provisional, not AI predictions. Future ranking can combine sharpness,
  * real vehicle coverage, view recognition, diversity and exposure on the backend.
  */
 export function selectKeyFrames(
@@ -23,8 +23,15 @@ export function selectKeyFrames(
     Math.max(1, Number.isFinite(maximum) ? Math.floor(maximum) : 16),
   );
   if (count === unique.length) return unique;
-  const groups = views
-    .map((view) => unique.filter((frame) => frame.vehicleView === view))
+  const groupKeys = Array.from(
+    new Set(unique.map((frame) => frame.scan?.sector ?? frame.vehicleView)),
+  );
+  const groups = groupKeys
+    .map((view) =>
+      unique.filter(
+        (frame) => (frame.scan?.sector ?? frame.vehicleView) === view,
+      ),
+    )
     .filter((group) => group.length);
   const quotas = groups.map(() => 0);
   let allocated = 0;

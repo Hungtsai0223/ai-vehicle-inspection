@@ -1807,7 +1807,7 @@ footer {
   }
   .camera-shell .scan-overlay,
   .camera-shell .real-scan .scan-overlay {
-    min-height: clamp(260px, calc(100svh - 390px), 390px);
+    min-height: clamp(330px, calc(100svh - 390px), 390px);
   }
 }
 .damage-detection-selector button[aria-pressed="true"] {
@@ -1821,4 +1821,340 @@ footer {
     background: #fff5e7;
     border-radius: 8px;
   }
+}
+/* Guided vehicle scan. Scope visual changes to /scan. */
+.vehicle-framing-guide {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  color: #e0e8ed;
+}
+.framing-target {
+  position: absolute;
+  left: 9%;
+  right: 9%;
+  top: 100px;
+  bottom: 94px;
+  border: 1px dashed #c6d5de80;
+  border-radius: 28px;
+}
+.framing-target i {
+  position: absolute;
+  width: 28px;
+  height: 28px;
+  border: 3px solid currentColor;
+}
+.framing-target i:nth-child(1) {
+  top: -2px;
+  left: -2px;
+  border-right: 0;
+  border-bottom: 0;
+  border-radius: 26px 0 0;
+}
+.framing-target i:nth-child(2) {
+  top: -2px;
+  right: -2px;
+  border-left: 0;
+  border-bottom: 0;
+  border-radius: 0 26px 0 0;
+}
+.framing-target i:nth-child(3) {
+  bottom: -2px;
+  left: -2px;
+  border-right: 0;
+  border-top: 0;
+  border-radius: 0 0 0 26px;
+}
+.framing-target i:nth-child(4) {
+  bottom: -2px;
+  right: -2px;
+  border-left: 0;
+  border-top: 0;
+  border-radius: 0 0 26px;
+}
+.framing-good {
+  color: #74e3a7;
+}
+.framing-too_close,
+.framing-too_far,
+.framing-partial {
+  color: #ffce82;
+}
+.framing-caption {
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  top: 54px;
+  display: grid;
+  gap: 4px;
+  text-align: center;
+  font-size: 12px;
+  text-shadow: 0 1px 4px #000;
+}
+.framing-caption small {
+  font-size: 10px;
+}
+.scan-page .camera-instructions .scan-status {
+  margin-top: 8px;
+  min-height: 28px;
+}
+.vehicle-coverage {
+  text-align: center;
+  margin: 12px auto 14px;
+}
+.coverage-ring {
+  position: relative;
+  width: 280px;
+  max-width: 100%;
+  aspect-ratio: 1;
+  margin: -8px auto -8px;
+}
+.coverage-ring svg {
+  width: 100%;
+  height: 100%;
+}
+.sector-arc {
+  fill: none;
+  stroke: #d5dde3;
+  stroke-width: 13px;
+  stroke-linecap: round;
+  transition: stroke 0.25s;
+}
+.sector-arc.sector-current {
+  stroke: #e76e75;
+  animation: sector-breathe 1.8s ease-in-out infinite;
+}
+.sector-arc.sector-captured {
+  stroke: #69dba1;
+  animation: sector-capture 0.35s ease-out;
+}
+.sector-arc.sector-needs_retry {
+  stroke: #ffc46b;
+}
+.sector-arc.sector-unavailable {
+  stroke: #92a0af;
+  stroke-dasharray: 3 7;
+}
+.ring-center {
+  position: absolute;
+  inset: 28%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  color: #536573;
+  pointer-events: none;
+}
+.ring-center > svg {
+  width: 44px;
+  height: 44px;
+}
+.ring-center > strong {
+  color: #263743;
+  font-size: 30px;
+  line-height: 1;
+}
+.ring-center > strong small {
+  font-size: 14px;
+  font-weight: 400;
+  color: #536573;
+}
+.ring-center > span {
+  font-size: 11px;
+}
+.ring-center > small {
+  font-size: 11px;
+  color: #536573;
+}
+.sector-hit {
+  position: absolute;
+  width: 44px;
+  height: 44px;
+  transform: translate(-50%, -50%);
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  color: #152e23;
+  background: transparent;
+  cursor: pointer;
+  padding: 13px;
+}
+.sector-hit > svg {
+  width: 15px;
+  height: 15px;
+}
+.sector-hit.sector-unavailable {
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+}
+.sector-hit:focus-visible {
+  outline: 2px solid #bd3c45;
+  outline-offset: 0;
+}
+.sector-hit:disabled {
+  opacity: 1;
+  cursor: default;
+}
+.coverage-count {
+  font-size: 14px;
+  font-weight: 600;
+  color: #263743;
+}
+.ring-legend {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 10px;
+  color: #536573;
+  margin-top: 10px;
+}
+.ring-legend > span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.ring-legend i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #92a0af;
+}
+.ring-legend .legend-done {
+  background: #69dba1;
+}
+.ring-legend .legend-current {
+  background: #e76e75;
+}
+.ring-legend .legend-retry {
+  background: #ffc46b;
+}
+.guided-movement {
+  display: grid;
+  gap: 6px;
+  text-align: center;
+  margin-bottom: 14px;
+}
+.guided-movement strong {
+  color: #263743;
+  font-size: 14px;
+}
+.guided-movement small {
+  font-size: 11px;
+  color: #536573;
+}
+.guided-completion {
+  color: #23734d;
+  font-size: 12px;
+}
+.guided-actions {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0;
+}
+.guided-capturing {
+  color: #536573;
+  font-size: 12px;
+  text-align: center;
+}
+.skip-angle {
+  min-height: 44px;
+  background: none;
+  border: 1px solid #6e7d8b;
+  color: #536573;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.torch-controls {
+  position: absolute;
+  z-index: 4;
+  top: 96px;
+  right: 12px;
+  padding: 3px;
+  display: flex;
+  border: 1px solid #6d7b86;
+  border-radius: 10px;
+  background: #18232ee8;
+}
+.torch-controls legend {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #fff;
+  font-size: 10px;
+  background: #18232ee8;
+  border-radius: 4px;
+  padding: 2px 4px;
+}
+.torch-controls button {
+  min-height: 44px;
+  min-width: 44px;
+  border: 0;
+  background: transparent;
+  color: #c9d7e2;
+  border-radius: 7px;
+  font-size: 11px;
+  cursor: pointer;
+}
+.torch-controls button[aria-pressed="true"] {
+  background: #465968;
+  color: #fff;
+}
+.torch-light-notice {
+  position: absolute;
+  z-index: 4;
+  left: 12px;
+  right: 12px;
+  bottom: 106px;
+  padding: 4px 8px;
+  background: #18232ee8;
+  color: #ffce82;
+  font-size: 11px;
+  border-radius: 8px;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.torch-light-notice small {
+  font-size: 10px;
+}
+.torch-light-notice button {
+  min-height: 44px;
+  color: #fff;
+  background: none;
+  border: 0;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.scan-page .recapture-dialog .button {
+  margin-top: 10px;
+}
+@keyframes sector-breathe {
+  50% {
+    opacity: 0.5;
+  }
+}
+@keyframes sector-capture {
+  from {
+    stroke-width: 20px;
+  }
+  to {
+    stroke-width: 13px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sector-arc {
+    animation: none !important;
+    transition: none;
+  }
+}
+
+.camera-shell .scan-page .camera-preview > .vehicle-svg {
+  top: 52%;
 }

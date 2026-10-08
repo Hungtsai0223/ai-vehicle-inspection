@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
-import { Camera } from "lucide-react";
+import { Camera, Flashlight } from "lucide-react";
 import {
   CameraSession,
   cameraErrorState,
@@ -9,11 +9,16 @@ import {
 import {
   captureCameraFrame,
   frameSamplingIntervalMs,
+  FrameMotionEstimator,
 } from "@/lib/camera-frame-capture";
 import { releaseFramePreview } from "@/lib/frame-store";
 import type { CameraPermissionState } from "@/types/camera";
 import type { CameraPreviewProps } from "./CameraPreview";
-import { BoundingBox } from "./mock-camera-preview";
+import {
+  CameraTorchController,
+  type TorchState,
+  type TorchMode,
+} from "@/lib/camera-torch";
 /** Mounted only after an explicit start action. No camera request on /scan entry. */
 export function RealCameraPreview({
   scanActive,
@@ -25,6 +30,12 @@ export function RealCameraPreview({
   getCaptureMetadata,
 }: CameraPreviewProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const torch = useRef<CameraTorchController | null>(null);
+  const [torchState, setTorchState] = useState<TorchState | null>(null);
+  const stopTorch = useEffectEvent(() => {
+    void torch.current?.dispose();
+    torch.current = null;
+  });
   const [session] = useState(() => new CameraSession());
   const [permission, setPermission] =
     useState<CameraPermissionState>("loading");
@@ -37,7 +48,11 @@ export function RealCameraPreview({
       onFrameCapture?.(frame),
   );
   const capture = useEffectEvent(
-    (canvas: HTMLCanvasElement, qualityCanvas: HTMLCanvasElement) => {
+    (
+      canvas: HTMLCanvasElement,
+      qualityCanvas: HTMLCanvasElement,
+      motionEstimator: FrameMotionEstimator,
+    ) => {
       const video = videoRef.current;
       return video
         ? captureCameraFrame(video, {
@@ -47,11 +62,13 @@ export function RealCameraPreview({
             }),
             canvas,
             qualityCanvas,
+            motionEstimator,
           })
         : Promise.resolve(null);
     },
   );
   const failCapture = useEffectEvent(() => {
+    stopTorch();
     session.close();
     setPermission("camera_unavailable");
     notifyState("camera_unavailable");
@@ -66,6 +83,7 @@ export function RealCameraPreview({
       if (cancelled) return;
       cancelled = true;
       clearTimeout(interruption);
+      stopTorch();
       session.close();
       if (video) video.srcObject = null;
       setPermission("paused");
@@ -96,6 +114,11 @@ export function RealCameraPreview({
             track.addEventListener("mute", interrupted);
             track.addEventListener("unmute", resumed);
           }
+          const videoTrack = stream.getVideoTracks()[0];
+          if (videoTrack)
+            torch.current = new CameraTorchController(videoTrack, (state) => {
+              if (!cancelled) setTorchState(state);
+            });
           await video.play();
           if (cancelled) return;
           setPermission("permission_granted");
@@ -104,6 +127,7 @@ export function RealCameraPreview({
         })
         .catch((error: unknown) => {
           if (cancelled) return;
+          stopTorch();
           session.close();
           const state = cameraErrorState(error);
           setPermission(state);
@@ -111,6 +135,7 @@ export function RealCameraPreview({
         });
     return () => {
       cancelled = true;
+      stopTorch();
       session.close();
       if (video) video.srcObject = null;
       clearTimeout(interruption);
@@ -130,14 +155,18 @@ export function RealCameraPreview({
     let busy = false;
     const canvas = document.createElement("canvas");
     const qualityCanvas = document.createElement("canvas");
+    const motionEstimator = new FrameMotionEstimator();
     const sample = async () => {
       if (busy || cancelled || document.hidden) return;
       busy = true;
       try {
-        const frame = await capture(canvas, qualityCanvas);
+        const frame = await capture(canvas, qualityCanvas, motionEstimator);
         if (frame) {
           if (cancelled) releaseFramePreview(frame);
-          else emitFrame(frame);
+          else {
+            torch.current?.observe(frame.quality.exposureScore);
+            emitFrame(frame);
+          }
         }
       } catch {
         if (!cancelled) failCapture();
@@ -172,7 +201,42 @@ export function RealCameraPreview({
           ? "即時相機 · 僅擷取本次檢查影格"
           : "真實相機"}
       </span>
-      <BoundingBox good={false} />
+      {permission === "permission_granted" && torchState?.torchSupported && (
+        <fieldset className="torch-controls" aria-label="相機補光">
+          <legend>
+            <Flashlight size={14} /> 補光：
+            {torchState.mode === "auto"
+              ? "自動"
+              : torchState.mode === "on"
+                ? "開啟"
+                : "關閉"}
+          </legend>
+          {(["auto", "on", "off"] as TorchMode[]).map((mode) => (
+            <button
+              key={mode}
+              type="button"
+              aria-pressed={torchState.mode === mode}
+              onClick={() => torch.current?.setMode(mode)}
+            >
+              {mode === "auto" ? "自動" : mode === "on" ? "開啟" : "關閉"}
+            </button>
+          ))}
+        </fieldset>
+      )}
+      {permission === "permission_granted" && torchState?.lowLightDetected && (
+        <div className="torch-light-notice" role="status">
+          <span>
+            {torchState.torchEnabled ? "光線較暗，已開啟補光" : "環境光線較暗"}
+          </span>
+          {torchState.torchSupported && !torchState.torchEnabled ? (
+            <button type="button" onClick={() => torch.current?.setMode("on")}>
+              開啟補光
+            </button>
+          ) : !torchState.torchSupported ? (
+            <small>請移至明亮處，或改用 Demo 模式</small>
+          ) : null}
+        </div>
+      )}
       {permission !== "permission_granted" && (
         <div
           className="camera-access-message"

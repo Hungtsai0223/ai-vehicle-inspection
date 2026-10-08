@@ -1,5 +1,6 @@
 "use client";
-import { useEffect } from "react";
+import { useEffect, useEffectEvent } from "react";
+import type { CaptureMetadata } from "@/types/scan";
 import type { CapturedFrame } from "@/types/frame";
 import type { ScanState } from "@/types/inspection";
 import type { CameraMode, CameraPermissionState } from "@/types/camera";
@@ -17,7 +18,7 @@ export interface CameraPreviewProps {
   onCameraStateChange?: (state: CameraPermissionState) => void;
   onCaptureError?: (message: string) => void;
   onUseDemo?: () => void;
-  getCaptureMetadata?: () => { timestamp: number; prototypeProgress: number };
+  getCaptureMetadata?: () => CaptureMetadata;
 }
 export function CameraPreview(props: CameraPreviewProps) {
   const {
@@ -27,13 +28,20 @@ export function CameraPreview(props: CameraPreviewProps) {
     mode = "demo",
     cameraRequested = false,
   } = props;
+  const demoCapture = useEffectEvent((index: number, timestamp: number) => {
+    const metadata = props.getCaptureMetadata?.();
+    onFrameCapture?.({
+      ...createMockFrame(index, timestamp),
+      scan: metadata?.scan,
+      timestamp: metadata?.timestamp ?? timestamp,
+    });
+  });
   useEffect(() => {
     if (mode !== "demo" || !scanActive || !onFrameCapture) return;
     const started = performance.now();
     let index = 0;
     const capture = () => {
-      if (index < 16)
-        onFrameCapture(createMockFrame(index++, performance.now() - started));
+      demoCapture(index++, performance.now() - started);
     };
     capture();
     const timer = setInterval(capture, 500);
@@ -44,6 +52,7 @@ export function CameraPreview(props: CameraPreviewProps) {
   return (
     <MockCameraPreview
       state={state}
+      showBoundingBox={false}
       aimOnly={mode === "real"}
       label={mode === "real" ? "真實相機 · 按開始後開啟" : undefined}
     />

@@ -1,3 +1,5 @@
+import type { ScanSector } from "../types/scan";
+import { SCAN_SECTORS } from "./scan-coverage";
 import type { CameraMode } from "../types/camera";
 import type { InspectionStatus, Scenario, Vehicle } from "../types/inspection";
 import {
@@ -21,6 +23,8 @@ export interface SavedInspectionSession {
   scenario: Scenario;
   /** Explicit launcher/fallback result, regenerated locally after refresh. No image bytes. */
   demoResultScenario?: DemoResultScenario;
+  /** Local guided coverage only; never part of the HTTP API contract. */
+  unavailableScanSectors?: ScanSector[];
 }
 export function readInspectionSession(
   mode: SavedInspectionSession["mode"],
@@ -60,6 +64,12 @@ export function readInspectionSession(
           s.demoResultScenario === "backend_error" ||
           s.status !== "completed" ||
           !s.uploadComplete)) ||
+      (s.unavailableScanSectors !== undefined &&
+        (!Array.isArray(s.unavailableScanSectors) ||
+          s.unavailableScanSectors.length > 12 ||
+          !s.unavailableScanSectors.every((id: unknown) =>
+            SCAN_SECTORS.some((sector) => sector.id === id),
+          ))) ||
       typeof s.uploadComplete !== "boolean"
     )
       return null;
@@ -80,6 +90,13 @@ export function readInspectionSession(
       status: s.status,
       uploadComplete: s.uploadComplete,
       scenario: s.scenario,
+      ...(s.unavailableScanSectors
+        ? {
+            unavailableScanSectors: [
+              ...new Set<ScanSector>(s.unavailableScanSectors),
+            ],
+          }
+        : {}),
       ...(s.demoResultScenario
         ? { demoResultScenario: s.demoResultScenario }
         : {}),

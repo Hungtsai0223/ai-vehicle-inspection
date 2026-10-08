@@ -17,6 +17,8 @@ export {
   MockCameraPreview,
   BoundingBox,
 } from "@/components/camera/mock-camera-preview";
+import { VehicleFramingGuide } from "./VehicleFramingGuide";
+import type { FramingState } from "@/types/scan";
 import type { CameraPermissionState } from "@/types/camera";
 import type { ScanState } from "@/types/inspection";
 export const validationMessages: Record<ScanState, string> = {
@@ -69,10 +71,16 @@ export function ScanOverlay({
   progress,
   mode = "demo",
   cameraPermission = "idle",
+  instruction,
+  framing,
+  qualityMessage,
   ...cameraProps
 }: CameraPreviewProps & {
   progress: number;
   cameraPermission?: CameraPermissionState;
+  instruction?: string;
+  framing?: FramingState;
+  qualityMessage?: string;
 }) {
   const distanceGood = state !== "too_close" && state !== "too_far";
   const clarityGood =
@@ -104,28 +112,33 @@ export function ScanOverlay({
   return (
     <div className="scan-overlay">
       <CameraPreview state={state} mode={mode} {...cameraProps} />
+      {framing && (
+        <VehicleFramingGuide state={framing} simulated={mode === "demo"} />
+      )}
       <div className="camera-instructions">
         <div className="direction" role="status">
           <ArrowRight size={22} />
-          {scanDirection(progress)}
+          {instruction ?? scanDirection(progress)}
         </div>
-        <div className="checks">
-          {validations.map(({ label, valid }) => (
-            <span className={valid ? "" : "needs-adjustment"} key={label}>
-              {mode === "real" ? (
-                <Focus size={14} />
-              ) : valid ? (
-                <Check size={14} />
-              ) : (
-                <AlertTriangle size={14} />
-              )}{" "}
-              {label}
-            </span>
-          ))}
-        </div>
+        {!framing && (
+          <div className="checks">
+            {validations.map(({ label, valid }) => (
+              <span className={valid ? "" : "needs-adjustment"} key={label}>
+                {mode === "real" ? (
+                  <Focus size={14} />
+                ) : valid ? (
+                  <Check size={14} />
+                ) : (
+                  <AlertTriangle size={14} />
+                )}{" "}
+                {label}
+              </span>
+            ))}
+          </div>
+        )}
         <ScanStatusBadge
-          state={state}
-          label={mode === "real" ? liveLabel : undefined}
+          state={qualityMessage ? "too_fast" : state}
+          label={qualityMessage || (mode === "real" ? liveLabel : undefined)}
         />
       </div>
     </div>

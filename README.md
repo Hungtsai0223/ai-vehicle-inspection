@@ -20,8 +20,8 @@
 
 `/demo → /return → /scan-guide → /scan → /analyzing → /damage 或 /result → /dashboard`
 
-1. 開始模擬掃描，進度在約 8 秒內完成。
-2. 車頭、左側、車尾、右側每段約 2 秒，指引隨進度切換；100% 選出關鍵影格，顯示「正在準備 AI 分析」／「正在上傳關鍵影格」；成功上傳與 complete 後才進入分析。
+1. 開始模擬掃描，依 12 個引導角度逐一收集影格，正常約 12 秒完成；品質無效時停留重試。
+2. 每個角度取得 2 張有效影格後填滿對應環段；完成 12 區後從 24 張選出約 16 張關鍵影格。成功上傳與 complete 後才進入分析，時間本身不會填滿角度。
 3. 上傳與分析合計約 4 秒，輪詢 Mock API 取得結果；無異常（`no_damage`）直接進入結果，預設為 `potential_damage`。
 4. 預設發現左前車門疑似刮痕；按「前往補拍」開啟模擬拍攝對話框；0.6 秒後顯示「補拍完成」，再停留 1 秒後自動顯示結果。可取消補拍。
 5. 比較租車前、還車時與 AI Mask 示意影像，點擊車損標記會選取對應卡片。「完成還車」顯示完成狀態；「查看完整檢測報告」前往 `/dashboard`。
@@ -61,7 +61,7 @@ Next.js 16.3.8、React 19.3、TypeScript、Tailwind CSS 4、Lucide React、Frame
 
 ## Current MVP
 
-所有 AI 回應、報告時間、車損、信心度、Demo 攝影機與績效數值均為 **MOCK / DEMO DATA**。SVG 圖片不是實際車損證據。掃描產生並上傳 16 張模擬影格，分析與報告顯示同一批影格數量；8 秒是展示掃描時間，27.4 秒為模擬報告數據。
+所有 AI 回應、報告時間、車損、信心度、Demo 攝影機與績效數值均為 **MOCK / DEMO DATA**。SVG 圖片不是實際車損證據。完整 Demo 收集 24 張模擬影格並選出最多 16 張，分析與報告顯示同一批選定影格數量；27.4 秒為模擬報告數據。
 
 網路不佳僅模擬 UI 提示，**尚未實作 IndexedDB 離線暫存與重傳**。完成還車只改變本機 Demo 狀態，不會操作真實租車帳號。此為可建置的前端 MVP，正式部署仍需端到端後端整合與真實資料驗證。
 
@@ -69,7 +69,7 @@ Next.js 16.3.8、React 19.3、TypeScript、Tailwind CSS 4、Lucide React、Frame
 
 - Camera：`components/camera/CameraPreview.tsx` 切換 Mock / RealCameraPreview。真實模式只在按下「開始真實掃描」後 mount 並請求 getUserMedia；行動裝置若支援可優先顯示真實模式，桌面預設 Demo。首次進入頁面不請求權限。
 - Frames：`lib/camera-frame-capture.ts` 約每 500 ms（2 FPS）由 video → canvas → JPEG Blob（quality 0.8）擷取；最長邊 ≤ 1280 px，保持比例，不放大低解析度影像。原生 video 仍使用裝置預覽影格率。CapturedFrame 提供 Blob、previewUrl、timestamp（毫秒）、vehicleView 與 optional quality。
-- Selection / storage：`lib/frame-selection.ts` 依 front/left/rear/right 分組，每組均勻抽樣，通常選 16 張；`MemoryFrameStore` 最多保留 80 張暫存，淘汰時保留各方向。未選用的 Blob URL 立即 revoke；選定影格在上傳前可開發預覽，上傳成功後立即釋放 Blob/URL；開始新檢查或 provider 卸載同樣清除。中途離開掃描或切換模式會清除未完成影格；canvas 非同步結果若晚到，直接 revoke。
+- Selection / storage：`lib/frame-selection.ts` 優先依 12 個 guided sector 分組（舊影格退回 front/left/rear/right），每組均勻抽樣，通常選 16 張並保留角度多樣性；`MemoryFrameStore` 最多保留 80 張暫存，淘汰時保留各方向。未選用的 Blob URL 立即 revoke；選定影格在上傳前可開發預覽，上傳成功後立即釋放 Blob/URL；開始新檢查或 provider 卸載同樣清除。中途離開掃描或切換模式會清除未完成影格；canvas 非同步結果若晚到，直接 revoke。
 - AI：UI 只透過 `services/inspection-service.ts` 操作。詳見 [API contract](docs/API_CONTRACT.md) 與 [AI team quick guide](docs/AI_INTEGRATION_GUIDE.md)。未新增 AI 模型、Python 套件或 3D 引擎。
 - 車輛資料與車損資訊從共用型別、資料、service 與 context 取得。Unknown 漏掃區域獨立於 no_damage；車損類型、部位與影像 URL 皆由結果提供。車體示意圖目前只校準左前車門定位，其他部位仍需擴充。
 
@@ -136,14 +136,29 @@ npm run format
 2. 在手機 Safari / Chrome 開啟 HTTPS 網址，經 `/return → /scan-guide → /scan`。
 3. 選「真實相機」，確認隱私提示，按「開始真實掃描」，允許相機權限。後鏡頭為 ideal environment，裝置仍可能選擇其他可用鏡頭。
 4. 手機直立，依車頭 → 左側 → 車尾 → 右側指引慢慢拍攝。預覽用 `<video playsInline muted autoPlay>`；橫向只顯示建議，不鎖定方向。
-5. Prototype 時間引導約 24 秒，最多自動走到 95%。只有至少 12 張有效影格且有四個估計方向時才能按「完成掃描」；不會只因時間到了自動結束。方位與進度不是 AI 車身覆蓋判定。
+5. 依 12 區指引移位，點「已移至此角度，開始擷取」才拍攝下一區。每區收集 2 張有效影格；至少完成 10/12 區、包含車頭／左側／車尾／右側且有效影格 ≥12 張才可完成。10–11 區保留 83%／92%，不強制 100%。
 6. 按完成後關閉相機，分組選出最多 16 張，繼續原本 `/analyzing → /damage 或 /result`。預設 Mock AI 不會傳送相機影像，也不分析照片內容。
 7. 在 development 的 API Debug 可於上傳前展開 Key Frames；成功上傳後本機影格釋放，保留影格數與 inspectionId。production 沒有此面板。
 8. 切到背景、離開掃描頁、切回 Demo、拒絕權限、關閉裝置鏡頭等情境都應停止 tracks。若權限被拒絕，可修改瀏覽器設定後按「重新開啟相機」，或選 Demo。track ended、持續 mute 1.5 秒、video error 或背景切換會停止串流，顯示「相機已停止，請重新開啟相機。」；重新開始會清除未完成影格，不拼接不同掃描。
 
-亮度只使用 32×32 canvas 的平均 luminance（0–1），低於 0.15 提示較暗；blurScore、vehicleCoverage 尚未計算。沒有實作車損、車體部位、OCR 或其他 AI 判斷。
+亮度使用 32×32 canvas 的平均 luminance（0–1）。移動品質使用連續 tiny-frame RGB 平均差值的粗略代理，光線變化也可能觸發重試；不是物理速度、模糊或 AI 偵測。blurScore、vehicleCoverage 尚未計算。沒有實作車損、車體部位、OCR 或其他 AI 判斷。
 
 單元測試使用模擬 MediaStream / canvas，不會打開電腦鏡頭。尚需實際 iOS Safari / Android 裝置驗證相機選擇、permission／playback、背景切換與長時間拍攝；內建瀏覽器的 UI smoke test 不代表實機驗證。
+
+## Guided 360 Scan / Smart Torch
+
+此里程碑僅升級 `/scan`，沿用頂部導覽、配色、還車與既有 API 流程。
+
+- **Smart Torch（真實瀏覽器控制）**：啟用串流後檢查 active video track 的 `getCapabilities().torch`，不依裝置名稱推定。預設自動；亮度 <0.18 持續 1.5 秒判定偏暗，>0.35 持續 2 秒恢復明亮，中間區間保持既有狀態並重設計時。`applyConstraints` 僅於狀態變化執行，設 2.5 秒冷卻、序列化請求、失敗不逐幀重試，可手動切自動／開啟／關閉。完成、離頁、切 Demo、背景中斷、track ended 都清理補光並停止 tracks；晚完成的 ON 後仍排入 OFF。手動開啟模式維持使用者設定，切回自動後才依亮度關閉。
+- **瀏覽器限制**：iPhone Safari、Android Chrome、前／後鏡頭的 torch 能力各異，可能缺少 getCapabilities、torch 或拒絕 constraints。不支援時隱藏控制；失敗僅顯示光線提示／手動開啟。過暗影格不計入，可移至明亮處、確認略過該角度、改 Demo；四個主要方向仍是必要條件。需實機驗證，桌面 UI 測試不能證明硬體補光成功。
+- **VehicleFramingGuide**：固定取景參考框，並非偵測到的車輛框。真實模式透過 `VehicleFramingProvider`，尚未接 AI，保持 UNKNOWN。Demo 可模擬 GOOD、TOO_CLOSE、TOO_FAR；邏輯另支援 PARTIAL。可調常數：ratio .55–.85 GOOD、>.90 太近、<.40 太遠、normalized box 接觸 2% 邊界 PARTIAL；只是未驗證的原型門檻。
+- **VehicleCoverageRing**：原創 12 段環、中央車輛圖示、完成數及次要百分比；灰色待拍、紅色目前角度、綠色完成、琥珀重試、虛線 Unknown。支援鍵盤、44px 點擊區、reduced-motion 與可選震動。
+- **有效影格／進度**：JPEG 成功、亮度已知且 ≥.18、pixel-change ≤.20、非 TOO_FAST／模擬模糊、取景非明確無效。UNKNOWN 僅以原型方式接受。最低門檻常數 1 張，此版本採目標 2 張才完成一區。每區最多計 2 張、frame ID 去重、capture requestId 防止換區後晚到影格誤算。時間與取樣本身不產生進度。Demo 依有效模擬影格自動換區；Real 每次移位須確認，不會原地自動填滿全部角度。
+- **完成／缺漏**：至少 10/12 區 + 車頭／左側／車尾／右側 + ≥12 張有效影格；12 區為「完整掃描」，10–11 為「主要車身區域已完成」。確認「無法拍攝此角度」標 unavailable，可點環重新拍攝。完成時所有未完成角度以保守車體部位對應合併至本機 result 的 `missingAreas`（Unknown），包含略過與提前完成的區域；不可推論沒有損傷。輕量 metadata 保存在本次 sessionStorage，可刷新恢復，後端 coverage 分數不被改寫。
+- **有界儲存／API**：保留既有最多 80 張 memory store，此流程最多接受 24 張，通常選 16 張（約 12–20 的目標範圍），每個已完成 sector 至少保留一張。拒收、淘汰、上傳成功、切模式與離頁均釋放 Blob URL。新增 `scan`、`motionScore` 只在前端使用；既有 multipart metadata 仍只有 id、timestamp、vehicleView、quality，沒有新增 API 欄位、依賴或環境變數。
+- **下一步 AI 接點**：`lib/vehicle-framing.ts` 的 provider 接隊友 vehicle bounding-box model；`lib/vehicle-view-classifier.ts` 的 classifier 接隊友 viewpoint model，再以實際預測驗證角度。現在 Real 只是 guided-prototype requested labels，Demo 是 simulated labels，均不能聲稱 AI 已驗證 360°。`types/scan.ts` 的角度覆蓋與 damage detection 分開。
+
+新增 Node 單元測試覆蓋亮度門檻／遲滯、torch 能力／失敗／冷卻／清理、取景門檻、有效／無效／重複／晚到影格、12 區推進、略過／重拍、10 區與四面規則、完整 12 區、Demo／Real 標籤、key-frame 多樣性及 Unknown session 恢復。實機待驗：補光真的亮起／熄滅、不同鏡頭、曝光恢復、反光與暗色車身、繞車動作、背景／離頁中斷。
 
 ## Routes
 

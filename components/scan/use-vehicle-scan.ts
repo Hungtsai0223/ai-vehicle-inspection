@@ -1,5 +1,11 @@
 "use client";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { useRouter } from "next/navigation";
 import { useInspection } from "@/components/inspection/inspection-context";
 import {
@@ -7,32 +13,43 @@ import {
   InspectionApiError,
 } from "@/services/inspection-service";
 import { cameraMessages } from "@/lib/camera-access";
-import { prototypeScanDurationMs } from "@/lib/camera-frame-capture";
 import { releaseFramePreview } from "@/lib/frame-store";
-import { mockConfig } from "@/lib/mock-data";
-import { createMockFrame } from "@/lib/mock-frames";
+import {
+  initialCoverage,
+  recordSectorFrame,
+  frameQualityProblem,
+  canCompleteScan,
+  armSector,
+  markUnavailable,
+  chooseSector,
+} from "@/lib/scan-coverage";
+import {
+  framingState,
+  pendingVehicleFramingProvider,
+} from "@/lib/vehicle-framing";
+import {
+  guidedVehicleViewClassifier,
+  sectorVehicleView,
+} from "@/lib/vehicle-view-classifier";
 import type { CapturedFrame } from "@/types/frame";
 import type { CameraMode, CameraPermissionState } from "@/types/camera";
-const requiredViews = ["front", "left", "rear", "right"] as const;
-function enoughFrames(frames: CapturedFrame[]) {
-  return (
-    frames.length >= 12 &&
-    requiredViews.every((view) =>
-      frames.some((frame) => frame.vehicleView === view),
-    )
-  );
-}
-export function useVehicleScan() {
+import type { ScanState } from "@/types/inspection";
+import type {
+  CaptureMetadata,
+  FramingState,
+  ScanSector,
+  VehicleScanCoverage,
+} from "@/types/scan";
+export function useVehicleScan(validation: ScanState = "good") {
   const {
     begin,
     setProgress: setSharedProgress,
     setStatus,
     addFrame,
-    getFrames,
     retainKeyFrames,
     clearFrames,
-    frames,
     setCameraMode,
+    setScanUnavailable,
     prepareAnalysis,
     resetVersion,
     mode: inspectionMode,
@@ -40,7 +57,10 @@ export function useVehicleScan() {
     uploadComplete,
   } = useInspection();
   const router = useRouter();
-  const [prototypeProgress, setPrototypeProgress] = useState(0);
+  const [coverage, setCoverage] = useState(initialCoverage);
+  const coverageRef = useRef(coverage);
+  const [framing, setFraming] = useState<FramingState>("UNKNOWN");
+  const [qualityMessage, setQualityMessage] = useState("");
   const [phase, setPhase] = useState<
     "idle" | "opening" | "scanning" | "complete" | "upload-error"
   >("idle");
@@ -57,14 +77,14 @@ export function useVehicleScan() {
   const scanDuration = useRef(0);
   const activeMode = useRef<CameraMode>("demo");
   const controller = useRef<AbortController | undefined>(undefined);
-  const interval = useRef<ReturnType<typeof setInterval> | undefined>(
-    undefined,
+  const updateCoverage = useCallback(
+    (value: VehicleScanCoverage) => {
+      coverageRef.current = value;
+      setCoverage(value);
+      setSharedProgress(value.completionRatio * 100);
+    },
+    [setSharedProgress],
   );
-  const timeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const clearTimers = useCallback(() => {
-    clearInterval(interval.current);
-    clearTimeout(timeout.current);
-  }, []);
   const updatePhase = useCallback((value: typeof phase) => {
     phaseRef.current = value;
     setPhase(value);
@@ -78,18 +98,17 @@ export function useVehicleScan() {
     return () => {
       mounted.current = false;
       cancelRun();
-      clearTimers();
       if (!committed.current) clearFrames();
     };
-  }, [clearTimers, clearFrames, cancelRun]);
+  }, [clearFrames, cancelRun]);
   const reset = useCallback(
     (clearSharedState = true) => {
       cancelRun();
-      clearTimers();
       if (clearSharedState) clearFrames();
       committed.current = false;
       updatePhase("idle");
-      setPrototypeProgress(0);
+      coverageRef.current = initialCoverage();
+      setCoverage(coverageRef.current);
       if (clearSharedState) {
         setSharedProgress(0);
         setStatus("idle");
@@ -97,15 +116,10 @@ export function useVehicleScan() {
       setCameraRequested(false);
       setCameraState("idle");
       setError("");
+      setQualityMessage("");
+      setFraming("UNKNOWN");
     },
-    [
-      clearTimers,
-      clearFrames,
-      updatePhase,
-      setSharedProgress,
-      setStatus,
-      cancelRun,
-    ],
+    [clearFrames, updatePhase, setSharedProgress, setStatus, cancelRun],
   );
   const lastReset = useRef(resetVersion);
   useEffect(() => {
@@ -114,26 +128,6 @@ export function useVehicleScan() {
       reset(false);
     }
   }, [resetVersion, reset]);
-  const onFrameCapture = useCallback(
-    (frame: CapturedFrame) => {
-      if (phaseRef.current !== "scanning" || !mounted.current) {
-        releaseFramePreview(frame);
-        return;
-      }
-      addFrame(frame);
-    },
-    [addFrame],
-  );
-  const getCaptureMetadata = useCallback(() => {
-    const timestamp = Math.max(0, performance.now() - started.current);
-    return {
-      timestamp,
-      prototypeProgress: Math.min(
-        95,
-        (timestamp / prototypeScanDurationMs) * 100,
-      ),
-    };
-  }, []);
   const upload = useCallback(async () => {
     const token = run.current;
     if (uploadRun.current === token) return;
@@ -170,32 +164,106 @@ export function useVehicleScan() {
     uploadComplete,
   ]);
   const finish = useCallback(() => {
-    if (phaseRef.current !== "scanning") return;
-    if (activeMode.current === "real" && !enoughFrames(getFrames())) return;
-    clearTimers();
+    if (
+      phaseRef.current !== "scanning" ||
+      !canCompleteScan(coverageRef.current)
+    )
+      return;
     updatePhase("complete");
-    setPrototypeProgress(100);
-    setSharedProgress(100);
-    if (activeMode.current === "demo") {
-      // Only the explicit demo may fill simulated metadata for throttled timers.
-      const existing = getFrames();
-      for (let i = 0; i < 16; i++)
-        if (!existing.some((frame) => frame.id === `mock_frame_${i}`))
-          addFrame(createMockFrame(i, i * 500));
-    }
+    // Include all uncaptured directions as local Unknown, including unfinished angles.
+    setScanUnavailable(
+      coverageRef.current.sectors
+        .filter((s) => s.status !== "captured")
+        .map((s) => s.id),
+    );
     retainKeyFrames();
     scanDuration.current = (performance.now() - started.current) / 1000;
-    setCameraRequested(false); // Unmounts real preview, stopping every track.
+    setCameraRequested(false);
     void upload();
-  }, [
-    clearTimers,
-    updatePhase,
-    setSharedProgress,
-    getFrames,
-    addFrame,
-    retainKeyFrames,
-    upload,
-  ]);
+  }, [updatePhase, setScanUnavailable, retainKeyFrames, upload]);
+  const receiveFrame = useCallback(
+    (frame: CapturedFrame) => {
+      if (phaseRef.current !== "scanning" || !mounted.current || !frame.scan) {
+        releaseFramePreview(frame);
+        return;
+      }
+      const mode = activeMode.current;
+      const frameFraming =
+        mode === "demo"
+          ? validation === "too_close"
+            ? "TOO_CLOSE"
+            : validation === "too_far"
+              ? "TOO_FAR"
+              : "GOOD"
+          : framingState(pendingVehicleFramingProvider.inspect(frame));
+      setFraming(frameFraming);
+      const label = guidedVehicleViewClassifier.classify(
+        frame,
+        frame.scan,
+        mode,
+      );
+      const labeledFrame = {
+        ...frame,
+        scan: label,
+        vehicleView: sectorVehicleView(label.sector),
+      };
+      const problem = frameQualityProblem(
+        labeledFrame,
+        frameFraming,
+        mode === "demo" ? validation : undefined,
+      );
+      const previous = coverageRef.current;
+      const outcome = recordSectorFrame(
+        previous,
+        labeledFrame,
+        problem,
+        mode === "demo",
+      );
+      if (previous.armed) setQualityMessage(problem ?? "");
+      if (outcome.coverage !== previous) updateCoverage(outcome.coverage);
+      if (outcome.accepted) {
+        addFrame(labeledFrame);
+        if (
+          outcome.coverage.capturedSectorCount > previous.capturedSectorCount &&
+          typeof navigator.vibrate === "function"
+        ) {
+          try {
+            navigator.vibrate(30);
+          } catch {
+            /* Optional haptic. */
+          }
+        }
+        if (mode === "demo" && outcome.coverage.capturedSectorCount === 12)
+          finish();
+      } else releaseFramePreview(frame);
+    },
+    [validation, updateCoverage, addFrame, finish],
+  );
+  const receiveFrameRef = useRef(receiveFrame);
+  useLayoutEffect(() => {
+    receiveFrameRef.current = receiveFrame;
+  }, [receiveFrame]);
+  // Stable callback: sampling intervals must not restart for each received frame.
+  const onFrameCapture = useCallback(
+    (frame: CapturedFrame) => receiveFrameRef.current(frame),
+    [],
+  );
+  const getCaptureMetadata = useCallback((): CaptureMetadata => {
+    const current = coverageRef.current;
+    return {
+      timestamp: Math.max(0, performance.now() - started.current),
+      prototypeProgress: current.completionRatio * 100,
+      scan:
+        current.currentSector && current.armed
+          ? {
+              sector: current.currentSector,
+              requestId: current.requestId,
+              source:
+                activeMode.current === "demo" ? "demo" : "guided-prototype",
+            }
+          : undefined,
+    };
+  }, []);
   const startScanning = useCallback(
     async (mode: CameraMode) => {
       const token = run.current;
@@ -205,21 +273,8 @@ export function useVehicleScan() {
         if (!mounted.current || token !== run.current) return;
         activeMode.current = mode;
         started.current = performance.now();
+        updateCoverage(initialCoverage(true));
         updatePhase("scanning");
-        interval.current = setInterval(() => {
-          const elapsed = performance.now() - started.current;
-          const value = Math.min(
-            mode === "real" ? 95 : 100,
-            (elapsed /
-              (mode === "real"
-                ? prototypeScanDurationMs
-                : mockConfig.scanDurationMs)) *
-              100,
-          );
-          setPrototypeProgress(value);
-          setSharedProgress(value);
-          if (mode === "demo" && value >= 100) finish();
-        }, 100);
       } catch (error) {
         if (!mounted.current || token !== run.current) return;
         setError(inspectionErrorMessage(error));
@@ -228,13 +283,14 @@ export function useVehicleScan() {
         updatePhase("idle");
       }
     },
-    [begin, updatePhase, setSharedProgress, finish, setStatus],
+    [begin, updateCoverage, updatePhase, setStatus],
   );
   function start(mode: CameraMode) {
     if (phaseRef.current !== "idle") return;
     reset();
     setCameraMode(mode);
     updatePhase("opening");
+    activeMode.current = mode;
     if (mode === "real") {
       setCameraState("loading");
       setCameraRequestId((id) => id + 1);
@@ -249,32 +305,26 @@ export function useVehicleScan() {
       setCameraState(state);
       if (!["loading", "permission_granted", "idle"].includes(state)) {
         cancelRun();
-        clearTimers();
         clearFrames();
         updatePhase("idle");
-        setPrototypeProgress(0);
-        setSharedProgress(0);
+        updateCoverage(initialCoverage());
         setStatus("idle");
         setCameraRequested(false);
         setError(cameraMessages[state]);
       }
     },
-    [
-      clearTimers,
-      clearFrames,
-      updatePhase,
-      setStatus,
-      setSharedProgress,
-      cancelRun,
-    ],
+    [clearFrames, updatePhase, updateCoverage, setStatus, cancelRun],
   );
   const onCaptureError = useCallback(
     (message: string) => setError(message),
     [],
   );
   return {
-    prototypeProgress,
-    progress: prototypeProgress,
+    coverage,
+    framing,
+    qualityMessage,
+    prototypeProgress: coverage.completionRatio * 100,
+    progress: coverage.completionRatio * 100,
     phase,
     error,
     start,
@@ -289,7 +339,33 @@ export function useVehicleScan() {
     onCameraReady,
     onCameraStateChange,
     onCaptureError,
-    canFinish: enoughFrames(frames),
+    canFinish: canCompleteScan(coverage),
     running: phase !== "idle",
+    pauseCurrent: () => {
+      if (phaseRef.current === "scanning")
+        updateCoverage({
+          ...coverageRef.current,
+          armed: false,
+          requestId: coverageRef.current.requestId + 1,
+        });
+    },
+    armCurrent: () => {
+      if (phaseRef.current === "scanning") {
+        setQualityMessage("");
+        updateCoverage(armSector(coverageRef.current));
+      }
+    },
+    skipCurrent: () => {
+      if (phaseRef.current === "scanning") {
+        setQualityMessage("");
+        updateCoverage(markUnavailable(coverageRef.current));
+      }
+    },
+    selectSector: (sector: ScanSector) => {
+      if (phaseRef.current === "scanning") {
+        setQualityMessage("");
+        updateCoverage(chooseSector(coverageRef.current, sector));
+      }
+    },
   };
 }
