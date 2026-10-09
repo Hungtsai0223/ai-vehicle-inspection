@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vehicle-keyframes"
+version = "0.1.0"
+description = "Geometry-aware video keyframe extraction baseline"
+requires-python = ">=3.10"
+dependencies = ["numpy>=1.24", "opencv-python>=4.8"]
+
+[project.optional-dependencies]
+av = ["av>=12"]
+
+[project.scripts]
+vehicle-keyframes = "vehicle_keyframes.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
