@@ -3,16 +3,18 @@ import math
 import cv2
 
 
-def decode(path, backend):
+def decode(path, backend): # only decode every frame
     if backend == "pyav":
         import av
         with av.open(str(path)) as container:
-            stream = container.streams.video[0]
+            stream = container.streams.video[0] 
             for index, frame in enumerate(container.decode(stream)):
                 if frame.time is None:
                     raise ValueError("Frame has no presentation timestamp")
                 yield index, float(frame.time), frame.to_ndarray(format="bgr24")
-        return
+        return 
+        # Each decoded frame is converted into an OpenCV-compatible BGR image.
+
     cap = cv2.VideoCapture(str(path))
     if not cap.isOpened():
         raise ValueError(f"Cannot open video: {path}")
@@ -36,7 +38,7 @@ def decode(path, backend):
         cap.release()
 
 
-def candidates(path, config):
+def candidates(path, config): # select candidate to analysis
     next_time = None
     for index, timestamp, frame in decode(path, config.backend):
         if next_time is None or timestamp + 1e-6 >= next_time:

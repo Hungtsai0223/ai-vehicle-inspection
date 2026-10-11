@@ -50,6 +50,8 @@ class BaselineTests(unittest.TestCase):
             self.assertEqual(len(result['keyframes']),1)
             self.assertTrue(any(r['reason']=='redundant' for r in result['candidates']))
             self.assertTrue((root/'output'/result['keyframes'][0]['image']).is_file())
+            self.assertTrue((root/'output'/result['keyframes'][0]['original_image']).is_file())
+            self.assertTrue(result['keyframes'][0]['preprocessed'])
             rejected = [r for r in result['candidates'] if not r['selected']]
             self.assertEqual(len(list((root/'output/output_delete').glob('*.jpg'))), len(rejected))
             for row in rejected:

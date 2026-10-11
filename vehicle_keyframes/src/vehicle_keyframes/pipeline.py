@@ -5,6 +5,7 @@ import cv2
 from .video import candidates
 from .quality import analyze
 from .geometry import extract, compare
+from .preprocess import enhance
 
 
 def run(video, output, config, validator=None, optimizer=None):
@@ -16,6 +17,9 @@ def run(video, output, config, validator=None, optimizer=None):
     images.mkdir()
     rejected = output / "output_delete"
     rejected.mkdir()
+    originals = output / "images_original"
+    if config.preprocess:
+        originals.mkdir()
 
     def save_rejected(frame, row):
         filename = f"frame_{row['frame_index']:08d}_{row['reason']}.jpg"
@@ -31,9 +35,15 @@ def run(video, output, config, validator=None, optimizer=None):
     cv2.setRNGSeed(0)
     try:
         for index, timestamp, frame in candidates(video, config):
+            original_frame = frame
+            # Keep source exposure evidence: enhancement must not hide saturation.
+            _, _, original_quality, _ = analyze(original_frame, config)
+            frame = enhance(original_frame, config)
             gray, mask, quality, passed = analyze(frame, config)
+            passed = passed and original_quality["clipped_fraction"] <= config.clipped_max
             row = {"frame_index": index, "timestamp_seconds": timestamp,
-                   "quality": quality, "selected": False, "segment": segment}
+                   "quality": quality, "original_quality": original_quality,
+                   "preprocessed": config.preprocess, "selected": False, "segment": segment}
             metadata["candidates"].append(row)
             if not passed:
                 row["reason"] = "quality_rejected"
@@ -63,6 +73,11 @@ def run(video, output, config, validator=None, optimizer=None):
             if not cv2.imwrite(str(images / filename), frame, [cv2.IMWRITE_JPEG_QUALITY, 95]):
                 raise OSError(f"Cannot save {filename}")
             row.update(selected=True, image=f"images/{filename}")
+            if config.preprocess:
+                if not cv2.imwrite(str(originals / filename), original_frame,
+                                   [cv2.IMWRITE_JPEG_QUALITY, 95]):
+                    raise OSError(f"Cannot save original {filename}")
+                row["original_image"] = f"images_original/{filename}"
             metadata["keyframes"].append(dict(row))
             reference, last_shape = features, gray.shape
         metadata["status"] = "complete" if metadata["keyframes"] else "no_keyframes"

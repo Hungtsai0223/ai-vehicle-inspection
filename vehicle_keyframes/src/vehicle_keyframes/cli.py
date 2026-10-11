@@ -15,6 +15,9 @@ def main():
             parser.add_argument("--backend", choices=["opencv", "pyav"], default=value)
         elif name == "roi":
             parser.add_argument("--roi", nargs=4, type=float, metavar=("X", "Y", "W", "H"))
+        elif isinstance(value, bool):
+            parser.add_argument("--"+name.replace("_", "-"),
+                                action=argparse.BooleanOptionalAction, default=value)
         else:
             parser.add_argument("--"+name.replace("_", "-"), type=type(value), default=value)
     args = parser.parse_args()
@@ -26,6 +29,8 @@ def main():
             or config.min_inliers < 8 or config.blur_min < 0 or config.min_motion < 0
             or config.ransac_px <= 0):
         parser.error("Invalid positive/count threshold")
+    if config.denoise_sigma < 0 or config.clahe_clip <= 0 or config.clahe_grid < 1:
+        parser.error("denoise-sigma >= 0, clahe-clip > 0 and clahe-grid >= 1 required")
     for name in ("clipped_max", "min_inlier_ratio", "min_grid_coverage", "homography_ratio"):
         if not 0 <= getattr(config, name) <= 1:
             parser.error(f"{name} must be in [0, 1]")
