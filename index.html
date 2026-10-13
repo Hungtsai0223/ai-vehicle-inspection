@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 車損 3D 視覺化 PoC - PnP 精準連動版</title>
+    <style>
+        body { margin: 0; background-color: #1a1a1a; color: white; font-family: sans-serif; overflow: hidden; display: flex; }
+        #photo-panel { width: 360px; height: 100vh; background: #222; border-right: 2px solid #444; padding: 15px; box-sizing: border-box; display: flex; flex-direction: column; z-index: 10; }
+        #car-photo { width: 100%; height: 230px; background: #2a2a2a; border: 2px dashed #666; border-radius: 8px; position: relative; cursor: crosshair; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+        .click-dot { position: absolute; width: 14px; height: 14px; background: #ff4757; border: 2px solid white; border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none; box-shadow: 0 0 8px rgba(255,71,87,0.8); z-index: 20; }
+        #canvas-container { flex: 1; height: 100vh; }
+        #info { position: absolute; top: 10px; right: 10px; z-index: 100; background: rgba(0,0,0,0.85); padding: 15px; border-radius: 8px; width: 260px; }
+        .status-box { font-size: 13px; color: #aaa; margin-top: 8px; }
+    </style>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+</head>
+<body>
+
+  <div id="photo-panel">
+        <h2>📷 2D 車損影像點擊</h2>
+        <p style="font-size: 12px; color: #ccc;">上傳前後照片並點擊觸發 3D 映射。</p>
+        
+        <!-- 新增這兩個檔案上傳欄位 -->
+        <label style="font-size: 12px; margin-top: 5px;">租車前照片：</label>
+        <input type="file" id="before-files" multiple accept="image/*" style="margin-bottom: 5px; font-size: 11px;">
+        
+        <label style="font-size: 12px;">租車後照片：</label>
+        <input type="file" id="after-files" multiple accept="image/*" style="margin-bottom: 10px; font-size: 11px;">
+
+        <div id="car-photo" style="background-image: url('./keyframe.jpg'); background-size: cover; background-position: center; background-repeat: no-repeat;">
+            <!-- 這裡不需要放 SVG 了，照片會直接作為背景顯示 -->
+        </div>
+        
+        <div class="status-box" id="click-coord">2D 點擊像素：等待點擊照片...</div>
+        <div class="status-box" id="api-status">後端狀態：等待觸發...</div>
+    </div>
+
+    <div id="info">
+        <h3>🚗 3D 映射預覽</h3>
+        <p id="selected-part" style="color: #00ffcc; font-weight: bold;">標記部位：無</p>
+    </div>
+
+    <div id="canvas-container"></div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { DecalGeometry } from 'three/addons/geometries/DecalGeometry.js';
+
+        let scene, camera, renderer, controls, carModel;
+        let currentDecal = null;
+        const raycaster = new THREE.Raycaster();
+        const decalTexture = createDamageTexture();
+        const decalMaterial = new THREE.MeshBasicMaterial({
+            map: decalTexture,
+            transparent: true,
+            depthTest: true,
+            polygonOffset: true,
+            polygonOffsetFactor: -4
+        });
+
+        init();
+
+        function init() {
+            const container = document.getElementById('canvas-container');
+
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x1a1a1a);
+
+            camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100);
+            camera.position.set(3.5, 1.8, 4.5);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            container.appendChild(renderer.domElement);
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 1.8);
+            scene.add(ambientLight);
+
+            const dirLight = new THREE.DirectionalLight(0xffffff, 2.5);
+            dirLight.position.set(5, 10, 7);
+            scene.add(dirLight);
+
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+
+            const loader = new GLTFLoader();
+            loader.load('./yaris_poc.glb', (gltf) => {
+                carModel = gltf.scene;
+                const box = new THREE.Box3().setFromObject(carModel);
+                const center = box.getCenter(new THREE.Vector3());
+                carModel.position.sub(center);
+                scene.add(carModel);
+            });
+
+            document.getElementById('car-photo').addEventListener('click', handlePhotoClick);
+            window.addEventListener('resize', onWindowResize);
+
+            animate();
+        }
+
+        function createDamageTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 256; canvas.height = 256;
+            const ctx = canvas.getContext('2d');
+            const gradient = ctx.createRadialGradient(128, 128, 10, 128, 128, 120);
+            gradient.addColorStop(0, 'rgba(255, 0, 0, 0.9)');
+            gradient.addColorStop(0.5, 'rgba(255, 50, 0, 0.6)');
+            gradient.addColorStop(1, 'rgba(255, 0, 0, 0)');
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.arc(128, 128, 120, 0, Math.PI * 2);
+            ctx.fill();
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        async function handlePhotoClick(event) {
+        const beforeInput = document.getElementById('before-files');
+        const afterInput = document.getElementById('after-files');
+
+        if (!beforeInput || beforeInput.files.length === 0 || !afterInput || afterInput.files.length === 0) {
+            alert("請先在畫面上選擇租車前與租車後的照片！");
+            return;
+        }
+
+        const formData = new FormData();
+        for (let i = 0; i < beforeInput.files.length; i++) {
+            formData.append("before_files", beforeInput.files[i]);
+        }
+        for (let i = 0; i < afterInput.files.length; i++) {
+            formData.append("after_files", afterInput.files[i]);
+        }
+
+        document.getElementById('api-status').innerText = "⏳ 正在進行 AI 車損自動比對...";
+
+        try {
+            const response = await fetch('http://127.0.0.1:8000/api/compare-damage-batch', {
+                method: 'POST',
+                body: formData
+            });
+
+            const result = await response.json();
+
+            if (result.status === 'success' && carModel) {
+                document.getElementById('api-status').innerText = `✅ 比對成功！發現 ${result.total_processed} 組結果`;
+                document.getElementById('api-status').style.color = "#2ed573";
+
+      if (result.results && result.results.length > 0) {
+                        const damage = result.results[0];
+                        const pixelX = damage.pixel_x || 960;
+                        const pixelY = damage.pixel_y || 540;
+
+                    document.getElementById('click-coord').innerText = `偵測車損像素：(${pixelX}, ${pixelY})`;
+
+                    if (currentDecal) {
+                        scene.remove(currentDecal);
+                        currentDecal.geometry.dispose();
+                    }
+
+// 將 2D 像素座標轉換為正規化空間
+                  const ratioX = pixelX / 1920;
+                    const ratioY = pixelY / 1080;
+
+                    const targetY = (0.5 - ratioY) * -1.2 + 0.3;
+                    const camOuterX = 3.5; // 強制在外側發射射線
+                    const scaledZ = (0.5 - ratioX) * 3.0;
+
+                    const camPos = new THREE.Vector3(camOuterX, targetY, scaledZ);
+                    const targetPos = new THREE.Vector3(0, targetY, scaledZ);
+                    const rayDir = new THREE.Vector3().subVectors(targetPos, camPos).normalize();
+
+                    raycaster.set(camPos, rayDir);
+                    const intersects = raycaster.intersectObject(carModel, true);
+
+                    if (intersects.length > 0) {
+                        const hit = intersects[0];
+                        const position = hit.point;
+                        const normal = hit.face.normal.clone();
+                        normal.transformDirection(hit.object.matrixWorld);
+
+                        const orientation = new THREE.Euler();
+                        const dummy = new THREE.Object3D();
+                        dummy.position.copy(position);
+                        dummy.lookAt(position.clone().add(normal));
+                        orientation.copy(dummy.rotation);
+
+                        const decalGeo = new DecalGeometry(hit.object, position, orientation, new THREE.Vector3(0.5, 0.5, 0.5));
+                        currentDecal = new THREE.Mesh(decalGeo, decalMaterial);
+                        scene.add(currentDecal);
+
+                        const hitName = hit.object.name || hit.object.parent.name || 'car_body';
+                        document.getElementById('selected-part').innerText = `💥 標記部位：${hitName} (正確映射到外殼)`;
+                    } else {
+                        document.getElementById('selected-part').innerText = `標記部位：映射失敗`;
+                    }
+                } else {
+                    document.getElementById('selected-part').innerText = `標記部位：未偵測到明顯車損`;
+                }
+        
+            }
+        } catch (err) {
+            console.error(err);
+            document.getElementById('api-status').innerText = "❌ 後端連線失敗";
+        }
+    }
+        function onWindowResize() {
+            const container = document.getElementById('canvas-container');
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+    </script>
+</body>
+</html>
