@@ -22,6 +22,8 @@ def run(video, output, config, validator=None, optimizer=None):
         originals.mkdir()
 
     def save_rejected(frame, row):
+        if not config.save_rejected:
+            return
         filename = f"frame_{row['frame_index']:08d}_{row['reason']}.jpg"
         if not cv2.imwrite(str(rejected / filename), frame, [cv2.IMWRITE_JPEG_QUALITY, 95]):
             raise OSError(f"Cannot save rejected frame {filename}")
@@ -37,9 +39,12 @@ def run(video, output, config, validator=None, optimizer=None):
         for index, timestamp, frame in candidates(video, config):
             original_frame = frame
             # Keep source exposure evidence: enhancement must not hide saturation.
-            _, _, original_quality, _ = analyze(original_frame, config)
+            original_gray, original_mask, original_quality, original_passed = analyze(original_frame, config)
             frame = enhance(original_frame, config)
-            gray, mask, quality, passed = analyze(frame, config)
+            if config.preprocess:
+                gray, mask, quality, passed = analyze(frame, config)
+            else:
+                gray, mask, quality, passed = original_gray, original_mask, original_quality, original_passed
             passed = passed and original_quality["clipped_fraction"] <= config.clipped_max
             row = {"frame_index": index, "timestamp_seconds": timestamp,
                    "quality": quality, "original_quality": original_quality,

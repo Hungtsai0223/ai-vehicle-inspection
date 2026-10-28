@@ -7,7 +7,7 @@ name = "vehicle-keyframes"
 version = "0.1.0"
 description = "Geometry-aware video keyframe extraction baseline"
 requires-python = ">=3.10"
-dependencies = ["numpy>=1.24", "opencv-python>=4.8"]
+dependencies = ["numpy>=1.24", "opencv-python-headless>=4.10,<5"]
 
 [project.optional-dependencies]
 av = ["av>=12"]

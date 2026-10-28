@@ -68,7 +68,7 @@ flowchart TD
 
 `decode()` 順序讀取每張影格，以 generator 逐張傳遞，不將完整影片載入記憶體。`candidates()` 保留第一張，之後在 timestamp 到達「上一候選時間 + sample_seconds」時取下一張。
 
-目前程式預設 `sample_seconds = 0.1`。對常見 30 / 60 FPS 影片，通常每張影格都會進入分析。實際數量依 timestamp 決定；對更高 FPS 或不規則時間間隔，不保證全部保留。
+目前程式預設 `sample_seconds = 0.1`，候選率最多約 10 張/秒。對常見 30 / 60 FPS 影片，只取時間到達門檻的候選，不會分析每張影格。實際數量依 timestamp 決定；對更高 FPS 或不規則時間間隔，不保證全部保留。
 
 | 間隔 | 理想候選速率上限 | 說明 |
 |---|---:|---|
@@ -245,5 +245,15 @@ vehicle_keyframes/
 | 被判為過曝但照片看起來已變暗 | 原始 clipping 仍會過濾，前處理不能補回飽和細節 |
 | 選取太多 | 檢查 tracking_lost 是否過多，再調整 motion 與採樣；不要只硬切張數 |
 | 選取太少 | 檢查 quality_rejected、insufficient_features、planar_or_rotation 的比例，對照 output_delete |
-| 速度慢／磁碟用量高 | 增大 sample-seconds；目前預設 0.01 很密集，前處理為原解析度且排除候選也寫 JPEG |
+| 速度慢／磁碟用量高 | 增大 sample-seconds；目前預設 0.1 秒；可加 --no-save-rejected 省略被排除候選的 JPEG，前處理為原解析度且排除候選也寫 JPEG |
 | 不支援影片格式／timestamp | 嘗試 PyAV backend，或先用外部 FFmpeg 轉檔 |
+
+
+## 8. 接回既有前端
+
+macOS / Linux：在整個 repository 根目錄建立虛擬環境後，執行 `python -m pip install -r requirements-dev.txt -e ./vehicle_keyframes`。
+`python -m vehicle_keyframes.cli 0001-1000.mp4 --output vehicle_keyframes/output/car01 --no-save-rejected` 可減少診斷影像磁碟寫入；預設仍保留原本的排除影像功能。關閉前處理時不再重複做相同品質計算。Config 的程式呼叫與 CLI 使用同一套參數驗證。
+
+開發前端 `/dev/integration` →「匯入同學的關鍵影格」，選 metadata.json 與 **images_original** 的 JPEG（若 --no-preprocess 才用 images）。前端會檢查 schema、檔名重複、時間、品質及大小，最多取 16 張，將秒轉為毫秒並沿用現有五端點。檔案選擇器無法證明檔案未被修改，請勿用同名增強影像冒充原始影像。geometry 不是 viewpoint，所以 vehicleView 保持 unknown；不會把 Laplacian variance 當成前端 blurScore，也不推論 360° 完整覆蓋。
+
+完整整合狀態、啟動方式與待接事項見 [TEAM_INTEGRATION](../docs/TEAM_INTEGRATION.md)。

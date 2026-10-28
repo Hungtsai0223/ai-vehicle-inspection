@@ -27,6 +27,8 @@ def align_images(img_before, img_after):
     pts_after = np.float32([kp2[m.trainIdx].pt for m in good_matches]).reshape(-1, 1, 2)
 
     H, mask = cv2.findHomography(pts_after, pts_before, cv2.RANSAC, 5.0)
+    if H is None or not np.isfinite(H).all() or mask is None or int(mask.sum()) < 4:
+        return img_after, False
     height, width, _ = img_before.shape
     aligned_after = cv2.warpPerspective(img_after, H, (width, height))
 
@@ -36,6 +38,9 @@ def detect_car_damage(img_before, img_after, min_area=10):
     """
     直接比對兩張圖片的像素差異（不經由 ORB 強制對齊，確保塗鴉或車損能被抓到）
     """
+    # Pixel differences include lighting, pose and background changes; not confirmed damage.
+    if (img_before is None or img_after is None or img_before.ndim != 3 or img_after.ndim != 3):
+        raise ValueError("Two decoded color images are required")
     # 移除 align_images，直接使用原圖大小進行比對
     # 確保兩張圖尺寸一致
     if img_before.shape != img_after.shape:
@@ -43,7 +48,7 @@ def detect_car_damage(img_before, img_after, min_area=10):
 
     gray1 = cv2.cvtColor(img_before, cv2.COLOR_BGR2GRAY)
     gray2 = cv2.cvtColor(img_after, cv2.COLOR_BGR2GRAY)
-    
+
     # 輕微模糊
     gray1 = cv2.GaussianBlur(gray1, (3, 3), 0)
     gray2 = cv2.GaussianBlur(gray2, (3, 3), 0)
@@ -51,7 +56,7 @@ def detect_car_damage(img_before, img_after, min_area=10):
     # 計算絕對差值
     diff = cv2.absdiff(gray1, gray2)
     _, thresh = cv2.threshold(diff, 15, 255, cv2.THRESH_BINARY)
-    
+
     kernel = np.ones((3, 3), np.uint8)
     thresh = cv2.dilate(thresh, kernel, iterations=1)
 

@@ -41,7 +41,7 @@ AI Backend → Potential Damage Detection (pending teammate integration)
     ↓ Result UI / Human Review
 ```
 
-Next.js 16.3.8、React 19.3、TypeScript、Tailwind CSS 4、Lucide React、Framer Motion。共用 CSS token 統一白底、紅色主色、綠色完成狀態、琥珀警告與元件尺寸。支援鍵盤焦點與 reduced-motion。
+Next.js 16.4.3、React 19.3、TypeScript、Tailwind CSS 4、Lucide React、Framer Motion。共用 CSS token 統一白底、紅色主色、綠色完成狀態、琥珀警告與元件尺寸。支援鍵盤焦點與 reduced-motion。
 
 ## Current Status
 
@@ -247,7 +247,7 @@ Prototype 版本中的影像僅用於本次車況檢測流程；實際正式服�
 
 ## GitHub
 
-Private repository：[Hungtsai0223/ai-vehicle-inspection](https://github.com/Hungtsai0223/ai-vehicle-inspection)。GitHub CLI 已登入，`origin` 使用 HTTPS；從本專案目錄推送更新：
+Repository（目前 Public）：[Hungtsai0223/ai-vehicle-inspection](https://github.com/Hungtsai0223/ai-vehicle-inspection)。GitHub CLI 已登入，`origin` 使用 HTTPS；從本專案目錄推送更新：
 
 ```bash
 git add .
@@ -272,3 +272,7 @@ git push origin main
 before/after/mask 是專案自製的中性抽象 SVG，圖中與 UI 都標示 Demo Image，不是 AI 推論或真實車損證據。相機沿用最長邊 1280 px、JPEG quality 0.8；刮痕細節與實際 bytes/image 仍需手機驗證。
 
 展示講稿：[DEMO_SCRIPT](docs/DEMO_SCRIPT.md)。AI 接線確認：[AI_TEAM_CHECKLIST](docs/AI_TEAM_CHECKLIST.md) 與 [AI_BACKEND_HANDOFF](docs/AI_BACKEND_HANDOFF.md)。
+
+## Teammate Subsystem Integration
+
+同學的 `feature/keyframe-extraction` 與 `feature/3d-damage-mapping` 已在整合分支保留提交歷史合併。新增開發頁「匯入同學的關鍵影格」，可把原始 JPEG 與 metadata 送入既有 API 流程；照片差分與 3D 模型另由 Python 原型提供，仍需實車校正與模型整合。啟動方式、分支狀態、已修問題與界線見 [TEAM_INTEGRATION](docs/TEAM_INTEGRATION.md)。目前 production 還車頁面維持原 UI，不把近似 3D 點位或像素差異當作已驗證車損。

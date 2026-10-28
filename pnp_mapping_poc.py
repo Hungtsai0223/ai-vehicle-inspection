@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 
 def run_pnp_mapping_poc():
-    print("=== AI 車損 2D-to-3D PnP 座標映射 PoC ===")
+    print("=== 合成對應點 PnP 算法示意：未經實車校正 ===")
 
     # 1. 定義 3D 車體參考特徵點 (單位：公尺，以車體中心為原點)
     # 這裡選取 Toyota GR Yaris 容易辨識的 6 個特徵點
@@ -30,7 +30,7 @@ def run_pnp_mapping_poc():
     img_h, img_w = 1080, 1920
     focal_length = img_w  # 粗估焦距
     center = (img_w / 2, img_h / 2)
-    
+
     camera_matrix = np.array([
         [focal_length, 0,            center[0]],
         [0,            focal_length, center[1]],
@@ -41,9 +41,9 @@ def run_pnp_mapping_poc():
 
     # 4. 執行 SolvePnP 計算相機姿態 (Pose Estimation)
     success, rvec, tvec = cv2.solvePnP(
-        model_3d_points, 
-        image_2d_points, 
-        camera_matrix, 
+        model_3d_points,
+        image_2d_points,
+        camera_matrix,
         dist_coeffs,
         flags=cv2.SOLVEPNP_ITERATIVE
     )
@@ -82,7 +82,7 @@ def run_pnp_mapping_poc():
 
     print("\n🎯 [對接說明]")
     print("此 3D 視線 (Origin + Direction) 可直接送入 PyTrimesh 或 Three.js Raycaster，")
-    print("即可精準打中 'yaris_poc.glb' 的 'hood' 或 'car_body' Mesh，求出精準車損 3D 表面點！")
+    print("完成相機與車型校正、驗證對應點後，才可嘗試打中 'yaris_poc.glb' 的 'hood' 或 'car_body' Mesh，估計表面點（此腳本沒有實際驗證位置精度）！")
 
 if __name__ == "__main__":
     run_pnp_mapping_poc()
