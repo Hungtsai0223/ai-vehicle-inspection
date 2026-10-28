@@ -1,0 +1,411 @@
+<!doctype html>
+<html lang="zh-TW">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>照片差異與 3D 位置示意 · 實驗工具</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: #1a2027;
+        color: #eef2f6;
+        font:
+          14px/1.65 system-ui,
+          sans-serif;
+        display: grid;
+        grid-template-columns: 360px minmax(0, 1fr);
+        min-height: 100vh;
+      }
+      aside {
+        padding: 24px;
+        background: #222c36;
+      }
+      h1 {
+        font-size: 22px;
+        line-height: 1.4;
+      }
+      label {
+        display: block;
+        margin: 18px 0 8px;
+      }
+      input,
+      select,
+      button {
+        font: inherit;
+        max-width: 100%;
+        min-height: 44px;
+      }
+      button {
+        cursor: pointer;
+        background: #bd3e48;
+        border: 0;
+        border-radius: 8px;
+        padding: 10px 16px;
+        color: white;
+        margin: 14px 0;
+      }
+      button:disabled {
+        opacity: 0.5;
+        cursor: default;
+      }
+      .notice {
+        color: #ffd38d;
+        font-size: 12px;
+      }
+      #photo {
+        position: relative;
+        margin-top: 16px;
+      }
+      #photo img {
+        display: block;
+        width: 100%;
+      }
+      .dot {
+        position: absolute;
+        border: 2px solid #fff;
+        background: #d73e48;
+        border-radius: 50%;
+        width: 16px;
+        height: 16px;
+        min-height: 0;
+        transform: translate(-50%, -50%);
+        padding: 0;
+        margin: 0;
+      }
+      #viewer {
+        min-width: 0;
+        position: relative;
+        min-height: 420px;
+        height: 100vh;
+      }
+      #viewer canvas {
+        position: absolute;
+        inset: 0;
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
+      #model-status {
+        position: absolute;
+        top: 16px;
+        left: 16px;
+        right: 16px;
+        background: #18212be0;
+        padding: 10px;
+        border-radius: 8px;
+        font-size: 12px;
+        z-index: 1;
+      }
+      @media (max-width: 760px) {
+        body {
+          grid-template-columns: 1fr;
+        }
+        #viewer {
+          min-width: 0;
+          height: 60vh;
+          min-height: 360px;
+        }
+      }
+    </style>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+          "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <aside>
+      <h1>照片差異與 3D 位置示意</h1>
+      <p class="notice">
+        實驗工具 · 像素差異不等於車損。3D
+        標記使用近似投射，尚未接入相機校正、真實視角或車損 AI。此模型亦未與
+        Yaris Cross 車型校準。
+      </p>
+      <p>
+        前後照片依選取順序配對，請使用相同視角與光線；最多 12 組、每張 8 MiB。
+      </p>
+      <label for="before-files">租車前照片</label
+      ><input
+        type="file"
+        id="before-files"
+        multiple
+        accept="image/jpeg,image/png,image/webp"
+      />
+      <label for="after-files">租車後照片</label
+      ><input
+        type="file"
+        id="after-files"
+        multiple
+        accept="image/jpeg,image/png,image/webp"
+      />
+      <button id="compare" type="button">比對照片差異</button>
+      <p id="api-status" role="status">尚未上傳照片。</p>
+      <label for="pair">檢視配對影像</label
+      ><select id="pair" disabled></select>
+      <div id="photo"></div>
+      <p id="selected-part" role="status">
+        點選差異點，可在 3D 模型查看近似位置。
+      </p>
+    </aside>
+    <main id="viewer" aria-label="實驗車輛 3D 模型">
+      <p id="model-status" role="status">正在載入 3D 模型…</p>
+    </main>
+    <script type="module">
+      import * as THREE from "three";
+      import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+      import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+      import { comparisonRows, illustrativeRay } from "/assets/poc-mapping.mjs";
+      const before = document.querySelector("#before-files"),
+        after = document.querySelector("#after-files");
+      const compare = document.querySelector("#compare"),
+        pair = document.querySelector("#pair");
+      const status = document.querySelector("#api-status"),
+        photo = document.querySelector("#photo");
+      const part = document.querySelector("#selected-part"),
+        modelStatus = document.querySelector("#model-status");
+      let rows = [],
+        photos = [],
+        photoUrl,
+        model,
+        renderer,
+        controls,
+        animation,
+        activeRequest,
+        marker;
+      let scene, camera;
+      function clearPhoto() {
+        if (photoUrl) URL.revokeObjectURL(photoUrl);
+        photoUrl = undefined;
+        photo.replaceChildren();
+      }
+      function clearResult() {
+        activeRequest?.abort();
+        activeRequest = undefined;
+        compare.disabled = false;
+        rows = [];
+        pair.replaceChildren();
+        pair.disabled = true;
+        clearPhoto();
+        if (marker) marker.visible = false;
+        status.textContent = "照片已變更，請重新比對。";
+      }
+      before.addEventListener("change", clearResult);
+      after.addEventListener("change", clearResult);
+      function showMarker(row, damage) {
+        part.textContent = `差異像素 (${damage.pixel_x}, ${damage.pixel_y})；3D 僅為未校正的位置示意。`;
+        if (!model || !marker) return;
+        const ray = illustrativeRay(row, damage);
+        const raycaster = new THREE.Raycaster(
+          new THREE.Vector3(...ray.origin),
+          new THREE.Vector3(...ray.direction),
+        );
+        const hit = raycaster.intersectObject(model, true)[0];
+        marker.visible = !!hit;
+        if (hit) {
+          marker.position.copy(hit.point);
+          part.textContent += ` 模型部位：${hit.object.name || "未命名網格"}`;
+        } else part.textContent += " 近似射線未碰到模型。";
+      }
+      function showPair() {
+        clearPhoto();
+        if (marker) marker.visible = false;
+        const row = rows[Number(pair.value)];
+        if (!row) return;
+        const file = photos[row.image_index];
+        if (!file) throw new Error("影像配對索引無效");
+        photoUrl = URL.createObjectURL(file);
+        const image = document.createElement("img");
+        image.src = photoUrl;
+        image.alt = `第 ${row.image_index + 1} 組租車前照片與影像差異點`;
+        photo.append(image);
+        for (const [index, damage] of row.damages.entries()) {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "dot";
+          button.style.left = `${(damage.pixel_x / row.image_width) * 100}%`;
+          button.style.top = `${(damage.pixel_y / row.image_height) * 100}%`;
+          button.setAttribute(
+            "aria-label",
+            `差異點 ${index + 1}，未經車損確認`,
+          );
+          button.addEventListener("click", () => showMarker(row, damage));
+          photo.append(button);
+        }
+        part.textContent = row.damages.length
+          ? `發現 ${row.damages.length} 個影像差異區域，請人工確認。`
+          : "未發現超過門檻的影像差異；不能據此判定沒有車損。";
+      }
+      pair.addEventListener("change", showPair);
+      compare.addEventListener("click", async () => {
+        const beforeFiles = [...before.files],
+          afterFiles = [...after.files];
+        if (!beforeFiles.length || beforeFiles.length !== afterFiles.length) {
+          status.textContent = "請選擇相同數量的前後照片。";
+          return;
+        }
+        if (
+          beforeFiles.length > 12 ||
+          [...beforeFiles, ...afterFiles].some(
+            (file) => file.size > 8 * 1024 * 1024,
+          )
+        ) {
+          status.textContent = "請使用最多 12 組、每張不超過 8 MiB 的照片。";
+          return;
+        }
+        clearResult();
+        const request = new AbortController();
+        activeRequest = request;
+        compare.disabled = true;
+        status.textContent = "正在比對像素差異…";
+        const data = new FormData();
+        beforeFiles.forEach((file) => data.append("before_files", file));
+        afterFiles.forEach((file) => data.append("after_files", file));
+        try {
+          const response = await fetch("/api/compare-damage-batch", {
+            method: "POST",
+            body: data,
+            signal: request.signal,
+          });
+          if (!response.ok)
+            throw new Error(
+              `照片比對失敗（HTTP ${response.status}），請確認檔案格式、大小與配對數量。`,
+            );
+          rows = comparisonRows(await response.json());
+          photos = beforeFiles;
+          if (
+            rows.some((row) => row.image_index >= photos.length) ||
+            new Set(rows.map((row) => row.image_index)).size !== photos.length
+          )
+            throw new Error("影像配對數量不一致");
+          pair.replaceChildren(
+            ...rows.map((row, index) => {
+              const option = document.createElement("option");
+              option.value = index;
+              option.textContent = `第 ${row.image_index + 1} 組 · ${row.damage_count} 個差異`;
+              return option;
+            }),
+          );
+          pair.disabled = false;
+          showPair();
+          status.textContent = `已比對 ${rows.length} 組照片；結果未經車損 AI 或位置校正驗證。`;
+        } catch (error) {
+          if (!request.signal.aborted) status.textContent = error.message;
+        } finally {
+          if (activeRequest === request) {
+            compare.disabled = false;
+            activeRequest = undefined;
+          }
+        }
+      });
+      try {
+        const viewer = document.querySelector("#viewer");
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x1a2027);
+        camera = new THREE.PerspectiveCamera(
+          45,
+          viewer.clientWidth / viewer.clientHeight,
+          0.1,
+          100,
+        );
+        camera.position.set(5, 2.8, 5);
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+        viewer.append(renderer.domElement);
+        scene.add(new THREE.AmbientLight(0xffffff, 1.8));
+        const light = new THREE.DirectionalLight(0xffffff, 2.5);
+        light.position.set(5, 10, 7);
+        scene.add(light);
+        controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.minDistance = 2.5;
+        controls.maxDistance = 12;
+        marker = new THREE.Mesh(
+          new THREE.SphereGeometry(0.08, 16, 12),
+          new THREE.MeshBasicMaterial({ color: 0xff5364 }),
+        );
+        marker.visible = false;
+        scene.add(marker);
+        new GLTFLoader().load(
+          "/assets/yaris_poc.glb",
+          (gltf) => {
+            const content = gltf.scene;
+            const box = new THREE.Box3().setFromObject(content);
+            const center = box.getCenter(new THREE.Vector3());
+            const size = box.getSize(new THREE.Vector3());
+            const span = Math.max(size.x, size.y, size.z);
+            if (!Number.isFinite(span) || span <= 0) {
+              modelStatus.textContent = "模型尺寸無效，無法顯示。";
+              return;
+            }
+            content.position.sub(center);
+            model = new THREE.Group();
+            model.add(content);
+            model.scale.setScalar(4 / span);
+            scene.add(model);
+            modelStatus.textContent = "3D 模型已載入 · 標記為未校正示意";
+          },
+          undefined,
+          () => {
+            modelStatus.textContent =
+              "模型載入失敗；仍可使用左側照片差異檢視。";
+          },
+        );
+        const resize = () => {
+          renderer.setSize(viewer.clientWidth, viewer.clientHeight);
+          camera.aspect = viewer.clientWidth / viewer.clientHeight;
+          camera.updateProjectionMatrix();
+        };
+        const observer = new ResizeObserver(resize);
+        observer.observe(viewer);
+        resize();
+        function render() {
+          animation = requestAnimationFrame(render);
+          controls.update();
+          renderer.render(scene, camera);
+        }
+        render();
+        window.addEventListener(
+          "pagehide",
+          () => {
+            cancelAnimationFrame(animation);
+            observer.disconnect();
+            controls.dispose();
+            scene.traverse((object) => {
+              object.geometry?.dispose();
+              const materials = Array.isArray(object.material)
+                ? object.material
+                : [object.material];
+              materials.forEach((material) => {
+                if (material) {
+                  Object.values(material).forEach((value) => {
+                    if (value?.isTexture) value.dispose();
+                  });
+                  material.dispose();
+                }
+              });
+            });
+            renderer.dispose();
+          },
+          { once: true },
+        );
+      } catch {
+        modelStatus.textContent =
+          "此瀏覽器無法啟動 WebGL；仍可使用照片差異檢視。";
+      }
+      window.addEventListener(
+        "pagehide",
+        () => {
+          activeRequest?.abort();
+          clearPhoto();
+        },
+        { once: true },
+      );
+    </script>
+  </body>
+</html>

@@ -13,3 +13,14 @@ playwright-report/
 test-results/
 *.log
 *.tsbuildinfo
+
+# Independent Python/3D research stays out of the Next.js deployment.
+vehicle_keyframes/
+poc_tests/
+requirements*.txt
+*.py
+index.html
+*.glb
+*.mp4
+.venv/
+__pycache__/

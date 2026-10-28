@@ -13,6 +13,7 @@ import {
   type BackendHealth,
 } from "@/services/backend-health";
 import { API_CONTRACT_VERSION, getApiBaseUrl } from "@/lib/api-config";
+import { KeyframeImportPanel } from "./keyframe-import-panel";
 import { BackendStatusIndicator } from "./backend-status-indicator";
 import { pollInspection } from "@/services/poll-inspection";
 import { createMockFrame } from "@/lib/mock-frames";
@@ -34,7 +35,9 @@ export function IntegrationPanel() {
   const router = useRouter();
   const camera = useSyncExternalStore(subscribe, cameraAvailable, () => false);
   const [health, setHealth] = useState<BackendHealth>("unknown");
-  const [busy, setBusy] = useState(false);
+  const [testing, setBusy] = useState(false);
+  const [importBusy, setImportBusy] = useState(false);
+  const busy = testing || importBusy;
   const [message, setMessage] = useState("");
   const [lastId, setLastId] = useState("");
   const [lastUpload, setLastUpload] = useState(0);
@@ -56,7 +59,7 @@ export function IntegrationPanel() {
     return createInspectionService(new HttpInspectionApi(url.href), "API");
   }
   async function testHealth() {
-    if (running.current) return;
+    if (running.current || importBusy) return;
     running.current = true;
     abort.current?.abort();
     const controller = new AbortController();
@@ -87,7 +90,7 @@ export function IntegrationPanel() {
       | "selected"
       | "503",
   ) {
-    if (running.current) return;
+    if (running.current || importBusy) return;
     running.current = true;
     abort.current?.abort();
     const controller = new AbortController();
@@ -179,6 +182,7 @@ export function IntegrationPanel() {
     running.current = false;
     ctx.resetInspection();
     setBusy(false);
+    setImportBusy(false);
     setMessage("本次 inspection session 與影格已清除。");
     setLastId("");
     setLastUpload(0);
@@ -190,7 +194,8 @@ export function IntegrationPanel() {
     <div className="page integration-page">
       <h1>HTTP Integration</h1>
       <p className="lead">
-        僅開發環境使用。Stub 不執行 AI；測試影格是標記 DEMO 的實際 JPEG bytes。
+        僅開發環境使用。Stub 不執行 AI；一般測試使用 DEMO
+        JPEG，匯入區使用你選擇的原始影格。
       </p>
       <BackendStatusIndicator mode={ctx.mode} health={health} />
       <dl className="summary-grid">
@@ -279,8 +284,8 @@ export function IntegrationPanel() {
           </Button>
         </fieldset>
       )}
-      <p role="status">{busy ? "正在執行 HTTP 測試…" : message}</p>
-      {busy && (
+      <p role="status">{testing ? "正在執行 HTTP 測試…" : message}</p>
+      {testing && (
         <Button
           className="secondary"
           onClick={() => {
@@ -292,6 +297,17 @@ export function IntegrationPanel() {
           停止測試
         </Button>
       )}
+      <KeyframeImportPanel
+        key={ctx.resetVersion}
+        disabled={testing}
+        onBusyChange={setImportBusy}
+        onResult={(result) => {
+          setLastResult(result);
+          setLastId(result.inspectionId);
+          setLastUpload(result.keyFrameCount);
+          setLastStatus("completed");
+        }}
+      />
       <h2>Last Result</h2>
       {lastResult || ctx.result ? (
         <>
